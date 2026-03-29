@@ -1,0 +1,135 @@
+{
+  "core": [
+    {
+      "id": "core/primes",
+      "source": "examples/primes.cob",
+      "stem": "primes",
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/primes.txt"
+      }
+    },
+    {
+      "id": "core/collatz",
+      "source": "examples/collatz.cob",
+      "stem": "collatz",
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/collatz.txt"
+      }
+    },
+    {
+      "id": "core/gcd",
+      "source": "examples/gcd.cob",
+      "stem": "gcd",
+      "args": [],
+      "stdin": "1071\n462\n",
+      "oracle": {
+        "type": "file",
+        "path": "expected/gcd.txt"
+      }
+    }
+  ],
+  "compat": [
+    {
+      "id": "compat/game15",
+      "source": "{compat_repo}/game15.cob",
+      "stem": "game15",
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "reference"
+      }
+    },
+    {
+      "id": "compat/game15_unique",
+      "source": "{compat_repo}/game15.cob",
+      "stem": "game15",
+      "args": [
+        "--unique"
+      ],
+      "stdin": "",
+      "oracle": {
+        "type": "reference"
+      }
+    },
+    {
+      "id": "compat/game15tree_depth2",
+      "source": "{compat_repo}/game15tree.cob",
+      "stem": "game15tree",
+      "args": [
+        "--depth",
+        "2"
+      ],
+      "stdin": "",
+      "oracle": {
+        "type": "reference"
+      }
+    },
+    {
+      "id": "compat/game015",
+      "source": "{compat_repo}/game015.cob",
+      "stem": "game015",
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "reference"
+      }
+    },
+    {
+      "id": "compat/game015tree_depth2",
+      "source": "{compat_repo}/game015tree.cob",
+      "stem": "game015tree",
+      "args": [
+        "--depth",
+        "2"
+      ],
+      "stdin": "",
+      "oracle": {
+        "type": "reference"
+      }
+    },
+    {
+      "id": "compat/gameN_15_9",
+      "source": "{compat_repo}/gameN.cob",
+      "stem": "gameN",
+      "args": [
+        "15",
+        "9"
+      ],
+      "stdin": "",
+      "oracle": {
+        "type": "reference"
+      }
+    },
+    {
+      "id": "compat/gameN_12_8",
+      "source": "{compat_repo}/gameN.cob",
+      "stem": "gameN",
+      "args": [
+        "12",
+        "8"
+      ],
+      "stdin": "",
+      "oracle": {
+        "type": "reference"
+      }
+    },
+    {
+      "id": "compat/gameN_10",
+      "source": "{compat_repo}/gameN.cob",
+      "stem": "gameN",
+      "args": [
+        "10"
+      ],
+      "stdin": "",
+      "oracle": {
+        "type": "reference"
+      }
+    }
+  ]
+}

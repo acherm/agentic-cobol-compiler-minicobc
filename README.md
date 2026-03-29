@@ -13,10 +13,12 @@ The implementation lives in [src/minicobc.cob](/Users/mathieuacher/SANDBOX/cobol
 - `MOVE`
 - `ADD`, `SUBTRACT`, `MULTIPLY`, `DIVIDE`
 - `COMPUTE` with infix arithmetic
+- `FUNCTION MOD(...)` and `FUNCTION REM(...)` with two comma-separated arguments
 - `IF` / `ELSE` / `END-IF`
 - `PERFORM UNTIL` / `END-PERFORM`
 - `STOP RUN`
-- Operators inside expressions: `+ - * / MOD = <> < > <= >= AND OR NOT`
+- Operators inside expressions: `+ - * / = <> < > <= >= AND OR NOT`
+- Legacy infix `MOD` is still accepted as a MiniCOBC extension
 
 ## Deliberate constraints
 
@@ -46,6 +48,13 @@ To verify outputs against checked-in expectations:
 ./scripts/test.sh
 ```
 
+That test now checks both pipelines:
+
+1. `minicobc -> C -> gcc`
+2. `cobc -x -free`
+
+The core examples in `examples/` are valid free-form COBOL accepted by both compilers.
+
 ## Compatibility Mode
 
 `MiniCOBC` also has a targeted compatibility path for the five programs in [`acherm/agentic-cobol-game15tictactoe`](https://github.com/acherm/agentic-cobol-game15tictactoe) at commit `4ae3129ad1f5b6a81cb28c075864781891c0e7a1`.
@@ -57,3 +66,98 @@ To verify those five programs against GnuCOBOL:
 ```bash
 ./scripts/test-agentic-game15.sh
 ```
+
+## Self-Host Path
+
+The current `src/minicobc.cob` is also supported through a dedicated `PROGRAM-ID. MINICOB.` compatibility path. That path is generated from the current compiler source with GnuCOBOL and packaged as a single C template in `templates/compat/minicob.c`.
+
+Regenerate that template:
+
+```bash
+./scripts/regenerate-selfhost-template.sh
+```
+
+Verify the self-host bootstrap:
+
+```bash
+./scripts/test-selfhost.sh
+```
+
+That script:
+
+1. Regenerates the `MINICOB` self-host template
+2. Builds the stage-0 compiler with GnuCOBOL
+3. Uses stage-0 `minicobc` to compile `src/minicobc.cob` into stage-1 C
+4. Builds the stage-1 compiler
+5. Uses the stage-1 compiler to reproduce the same stage-2 self-host C
+6. Uses the stage-1 compiler on the core example programs
+
+## Benchmark
+
+The benchmark design and workload definitions live in `benchmark/README.md` and `benchmark/cases.json`.
+
+The benchmark now includes an embedded compiler comparison against GnuCOBOL, so each case records:
+
+- `minicobc` translation time
+- `gcc` build time
+- `cobc` compile time
+- runtime for both produced binaries
+- compile and runtime ratios versus GnuCOBOL
+
+Correctness still drives pass/fail. The compiler comparison is informational.
+
+Run the full benchmark:
+
+```bash
+./scripts/benchmark.sh
+```
+
+Run only the core suite:
+
+```bash
+./scripts/benchmark.sh --suite core
+```
+
+Run only the compatibility suite:
+
+```bash
+./scripts/benchmark.sh --suite compat --compat-repo external/agentic-cobol-game15tictactoe
+```
+
+Tune the embedded compiler comparison:
+
+```bash
+./scripts/benchmark.sh --suite core --compile-iterations 7 --run-iterations 9
+```
+
+Skip the GnuCOBOL performance comparison and run correctness-only:
+
+```bash
+./scripts/benchmark.sh --skip-compiler-compare
+```
+
+## Compiler Performance Comparison
+
+To compare `minicobc + gcc` against direct `cobc` compilation on the tested workloads:
+
+```bash
+./scripts/compare-compilers.sh
+```
+
+That writes:
+
+- `build/perf/compiler-compare.json`
+- `build/perf/compiler-compare.md`
+
+The `core` suite is the direct apples-to-apples comparison for the generic subset compiler.
+
+To compare the stage-0 compiler built by GnuCOBOL against the self-hosted stage-1 compiler:
+
+```bash
+./scripts/compare-selfhost.sh
+```
+
+That writes:
+
+- `build/perf/selfhost-compare.json`
+- `build/perf/selfhost-compare.md`
