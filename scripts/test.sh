@@ -7,6 +7,8 @@ cd "$ROOT_DIR"
 ./scripts/demo.sh > /dev/null
 ./scripts/test-gnucobol-core.sh > /dev/null
 ./scripts/test-generic-features.sh > /dev/null
+./scripts/test-game15-generic.sh > /dev/null
+./scripts/test-gameN-generic.sh > /dev/null
 
 diff -u expected/primes.txt build/out/primes.txt
 diff -u expected/collatz.txt build/out/collatz.txt

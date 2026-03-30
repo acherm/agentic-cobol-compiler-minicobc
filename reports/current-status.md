@@ -11,6 +11,7 @@ Date: 2026-03-30
 - has a first real optimization mode (`OPT`)
 - can bootstrap its current compiler source through a dedicated self-host path
 - can build and validate an external COBOL chess engine through a targeted compatibility path
+- can build `game15.cob` and `gameN.cob` from the external puzzle repository through the generic front end
 - can build the COBOL portion of DOOM through the generic front end
 
 The project is no longer just a proof of concept. It now has:
@@ -21,21 +22,21 @@ The project is no longer just a proof of concept. It now has:
 - a compiler-focused optimization corpus
 - a bootstrap verification loop
 
-The main limitation remains scope: the generic compiler is still a subset compiler, while the chess engine and self-hosted compiler source are supported through repository-specific compatibility paths rather than full general COBOL front-end support. DOOM is now a larger generic-front-end success case, not just another compatibility template.
+The main limitation remains scope: the generic compiler is still a subset compiler, while the chess engine, the remaining Game-of-15 tree and `game015*` variants, and the self-hosted compiler source are supported through repository-specific compatibility paths rather than full general COBOL front-end support. `game15.cob`, `gameN.cob`, and DOOM are now larger generic-front-end success cases, not just compatibility templates.
 
 ## Compiler Scope
 
 The generic `MiniCOBC` front end supports:
 
 - `IDENTIFICATION`, `DATA`, `WORKING-STORAGE`, and `PROCEDURE DIVISION`
-- numeric and alphanumeric storage, including `PIC 9(...)`, `PIC X(...)`, and `PIC S9(...) COMP-5`
+- numeric and alphanumeric storage, including `PIC 9(...)`, `PIC Z...`, `PIC X(...)`, and `PIC S9(...) COMP-5`
 - grouped items, one-dimensional `OCCURS`, and synchronized `REDEFINES` overlay families
-- `DISPLAY`, `ACCEPT`, `MOVE`, `ADD`, `SUBTRACT`, `MULTIPLY`, `DIVIDE`
+- `DISPLAY`, `ACCEPT`, `MOVE`, `INITIALIZE`, `UNSTRING`, `ADD`, `SUBTRACT`, `MULTIPLY`, `DIVIDE`
 - `COMPUTE` with arithmetic and boolean expressions
-- `IF` / `ELSE` / `END-IF`
+- `IF` / `ELSE IF` / `ELSE` / `END-IF`, including repeated `END-IF` tokens on one logical line
 - paragraph `PERFORM`, `PERFORM paragraph UNTIL`, `PERFORM UNTIL`, and `PERFORM VARYING`
 - `EVALUATE`
-- `FUNCTION MOD(...)`, `FUNCTION REM(...)`, and `FUNCTION SQRT(...)`
+- `FUNCTION MOD(...)`, `FUNCTION REM(...)`, `FUNCTION SQRT(...)`, `FUNCTION NUMVAL(...)`, and `FUNCTION TRIM(...)`
 - restricted external `CALL`
 - indexed references and `PIC X` reference modification `NAME(start:length)`
 - `STOP RUN`
@@ -54,7 +55,7 @@ The general benchmark harness is correctness-first and now covers three suites:
 
 - `core`: `primes`, `collatz`, `gcd`
 - `opt`: `constfold`, `constprop`, `deadstore`, `strength`, `boolchain`, `loopcanon`, `smallwidth`, `lcg`
-- `compat`: the `game15` / `game015` / `gameN` workloads from the external puzzle repository
+- `compat`: the Game-of-15 repository workloads, with `game15` and `gameN` now generic and the other variants still compatibility-backed
 
 Latest overall benchmark status from [build/benchmark/report.md](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/build/benchmark/report.md):
 
@@ -88,7 +89,7 @@ Per-case medians:
 
 Those numbers are local wall-clock measurements and should be treated as comparative signals, not universal claims.
 
-Compatibility-suite numbers also exist, but they measure template-backed compatibility paths rather than the generic subset compiler.
+Compatibility-suite numbers still exist, but they are now mixed: `game15` and `gameN` exercise the generic subset compiler, while the tree and `game015*` programs still measure template-backed compatibility paths.
 
 ## Current Optimization Status
 

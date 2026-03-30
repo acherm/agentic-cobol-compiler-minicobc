@@ -68,8 +68,8 @@ Oracle:
 
 Purpose:
 
-- Validate the targeted compatibility path in `MiniCOBC`
-- Cover the larger workloads that were manually tested in this repository
+- Validate the pinned external Game-of-15 workloads
+- Cover two programs that now go through the generic front end (`game15.cob` and `gameN.cob`) plus the remaining variants that still use targeted compatibility paths
 
 ## Cases
 
