@@ -2,3 +2,7 @@ build/
 external/
 .DS_Store
 scripts/__pycache__/
+deadstore_opt.*
+pic_s9_test.c
+pic_s9_test.c.h
+pic_s9_test.c.l.h

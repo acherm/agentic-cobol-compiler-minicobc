@@ -6,11 +6,12 @@ Date: 2026-03-30
 
 `MiniCOBC` is currently a working COBOL compiler written in COBOL that:
 
-- compiles a practical numeric free-form COBOL subset to C
+- compiles a practical free-form COBOL subset to C
 - supports a correctness benchmark corpus shared with GnuCOBOL
 - has a first real optimization mode (`OPT`)
 - can bootstrap its current compiler source through a dedicated self-host path
 - can build and validate an external COBOL chess engine through a targeted compatibility path
+- can build the COBOL portion of DOOM through the generic front end
 
 The project is no longer just a proof of concept. It now has:
 
@@ -20,28 +21,32 @@ The project is no longer just a proof of concept. It now has:
 - a compiler-focused optimization corpus
 - a bootstrap verification loop
 
-The main limitation remains scope: the generic compiler is still a subset compiler, while the chess engine and self-hosted compiler source are supported through repository-specific compatibility paths rather than full general COBOL front-end support.
+The main limitation remains scope: the generic compiler is still a subset compiler, while the chess engine and self-hosted compiler source are supported through repository-specific compatibility paths rather than full general COBOL front-end support. DOOM is now a larger generic-front-end success case, not just another compatibility template.
 
 ## Compiler Scope
 
 The generic `MiniCOBC` front end supports:
 
 - `IDENTIFICATION`, `DATA`, `WORKING-STORAGE`, and `PROCEDURE DIVISION`
-- numeric `01` and `77` items with `PIC 9(...)` and optional `VALUE`
+- numeric and alphanumeric storage, including `PIC 9(...)`, `PIC X(...)`, and `PIC S9(...) COMP-5`
+- grouped items, one-dimensional `OCCURS`, and synchronized `REDEFINES` overlay families
 - `DISPLAY`, `ACCEPT`, `MOVE`, `ADD`, `SUBTRACT`, `MULTIPLY`, `DIVIDE`
 - `COMPUTE` with arithmetic and boolean expressions
 - `IF` / `ELSE` / `END-IF`
-- `PERFORM UNTIL` / `END-PERFORM`
-- `FUNCTION MOD(...)` and `FUNCTION REM(...)`
+- paragraph `PERFORM`, `PERFORM paragraph UNTIL`, `PERFORM UNTIL`, and `PERFORM VARYING`
+- `EVALUATE`
+- `FUNCTION MOD(...)`, `FUNCTION REM(...)`, and `FUNCTION SQRT(...)`
+- restricted external `CALL`
+- indexed references and `PIC X` reference modification `NAME(start:length)`
 - `STOP RUN`
 
 The generic compiler still does not support broad COBOL features such as:
 
-- alphanumeric working-storage
 - file I/O
-- `CALL`
-- `OCCURS` tables
-- section/paragraph-heavy program structure
+- nested `OCCURS`
+- full COBOL string/runtime semantics
+- dynamic or runtime-resolved `CALL`
+- section-heavy program structure beyond the current paragraph subset
 
 ## Correctness And Benchmark Corpus
 
@@ -118,6 +123,17 @@ From [build/perf/minicobc-opt-compare-opt.md](/Users/mathieuacher/SANDBOX/cobol-
 
 - optimized compile ratio vs baseline: `1.00x`
 - optimized runtime ratio vs baseline: `0.99x`
+
+`OPT` is now also wired into the DOOM build path through `MINICOBC_OPT=1`.
+Latest DOOM-specific results from [build/perf/cobol-doom-opt-compare.md](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/build/perf/cobol-doom-opt-compare.md):
+
+- baseline DOOM build time: `1110.82 ms`
+- `OPT` DOOM build time: `1020.89 ms`
+- DOOM build ratio: `0.919x`
+- baseline startup first output: `4.77 ms`
+- `OPT` startup first output: `5.00 ms`
+- startup ratio: `1.046x`
+- binary size drops from `107672` to `89128` bytes
 
 Interpretation:
 
@@ -211,6 +227,35 @@ Interpretation:
 - the `minicobc`-built chess engine is currently about `14%` slower on the default perft profile
 - this is a valid engine benchmark, but it measures the compatibility path output, not improvements from the generic `MiniCOBC` front end
 
+## Generic DOOM Support
+
+`MiniCOBC` can now build the COBOL portion of DOOM from:
+
+- repo: `external/agentic-cobol-doom`
+- commit: `18ce52b3f7dd4d6d229d4a743513c39960959b44`
+
+This is a genuine generic-front-end path, not a copied template path. The current workflow is:
+
+- [scripts/build-cobol-doom.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/build-cobol-doom.sh)
+- [scripts/run-cobol-doom.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/run-cobol-doom.sh)
+- [scripts/test-cobol-doom.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-cobol-doom.sh)
+
+The key enabling pieces were:
+
+- signed `COMP-5`
+- paragraph `PERFORM UNTIL`
+- indexed `CALL ... USING BY VALUE`
+- `PIC X` buffers passed `BY REFERENCE`
+- `FUNCTION SQRT`
+- `PIC X` reference modification on redefining overlay views
+
+Current smoke validation:
+
+- generic `minicobc` DOOM build: `alive=1 rc=-15 stdout=1287 stderr=0`
+- reference GnuCOBOL DOOM build: `alive=1 rc=-15 stdout=1287 stderr=23`
+
+So the generic build reaches the same startup surface and stdout volume under the bounded smoke check.
+
 ## Overall Assessment
 
 Current strengths:
@@ -220,11 +265,13 @@ Current strengths:
 - optimization work is now measurable rather than speculative
 - bootstrap is operational
 - chess-engine validation and perft benchmarking are operational
+- DOOM now builds through the generic front end
 
 Current architectural caveats:
 
 - chess-engine support is compatibility-based, not generic COBOL support
 - bootstrap is compatibility-based, not full self-hosting of the generic source language
+- the generic front end is still a subset compiler, even though it is now strong enough to compile the COBOL DOOM program
 - the optimizer is still source-level and local, not IR-based
 
 ## Recommended Next Steps
@@ -238,7 +285,6 @@ Highest-value next compiler tasks:
 
 Highest-value next language-coverage tasks:
 
-- alphanumeric data items
 - broader expression handling
 - more realistic control-flow structure
 - eventually replacing the chess/self-host compatibility paths with genuine front-end support

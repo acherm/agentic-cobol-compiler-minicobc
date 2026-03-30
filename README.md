@@ -6,32 +6,44 @@ The implementation lives in [src/minicobc.cob](/Users/mathieuacher/SANDBOX/cobol
 
 ## Current Status
 
-As of 2026-03-30, `MiniCOBC` is a working subset COBOL compiler with correctness tests, performance harnesses, an optimization mode, a bootstrap check, and targeted compatibility support for larger external programs.
+As of 2026-03-30, `MiniCOBC` is a working subset COBOL compiler with correctness tests, performance harnesses, an optimization mode, a bootstrap check, and one larger external program now handled through the generic front end.
 
-- Generic compiler path: the shared `core` and `opt` corpus currently passes `11/11` cases, and the full benchmark passes `19/19` including the compatibility suite.
+- Generic compiler path: the shared `core` and `opt` corpus currently passes `11/11` benchmark cases, the full benchmark passes `19/19` including the compatibility suite, and additional regression tests now cover paragraph `PERFORM`, paragraph `PERFORM UNTIL`, `PERFORM VARYING`, restricted external `CALL`, multiline procedure statements, `EVALUATE`, `PIC X`, `PIC S9(...) COMP-5`, elementary and one-dimensional group `OCCURS`, indexed references, grouped child items, group `DISPLAY`, group `ACCEPT`, group-to-group `MOVE`, elementary `REDEFINES` views, redefining groups with child overlays that stay synchronized across writes, `FUNCTION SQRT`, and `PIC X` reference modification.
 - Direct comparison with GnuCOBOL on the generic `core` suite: `minicobc + gcc` is about `0.69x` `cobc` compile time and about `0.51x` to `0.52x` runtime on this machine.
 - Optimization mode: `OPT` now implements readonly `VALUE` propagation, local dead-store elimination, constant folding, loop-condition canonicalization, and width-aware integer selection. On the `core` suite, optimized `minicobc` is about `0.88x` baseline runtime.
 - Bootstrap: the current compiler source bootstraps through a dedicated `PROGRAM-ID. MINICOB.` self-host path, and the stage-1 compiler reproduces the same stage-2 C template.
 - Chess engine: the external COBOL chess engine at commit `faf0f163e9b2b4b6475262fc8f00fcaeeedf4919` builds and validates through a targeted compatibility path. On the default perft profile, the `minicobc`-built engine is about `1.14x` the runtime of the GnuCOBOL-built engine.
+- DOOM: the COBOL portion of `acherm/agentic-cobol-doom` at commit `18ce52b3f7dd4d6d229d4a743513c39960959b44` now builds through the generic `MiniCOBC` front end and plain `gcc`. The current `MINICOBC_OPT=1` DOOM build is about `0.92x` the baseline build time on this machine, with similar startup latency and a smaller binary.
 
-Important caveat: the chess engine and current bootstrap path are compatibility-mode integrations, not yet examples of full generic COBOL front-end support.
+Important caveat: the chess engine and current bootstrap path are compatibility-mode integrations. DOOM is now a generic-front-end success case, but `MiniCOBC` is still intentionally far from full COBOL 85 coverage.
 
 For a longer status snapshot with benchmark details, see `reports/current-status.md`.
 
 ## Supported subset
 
 - `IDENTIFICATION DIVISION`, `DATA DIVISION`, `WORKING-STORAGE SECTION`, `PROCEDURE DIVISION`
-- Numeric `01` and `77` `PIC 9(...)` items with optional `VALUE`
-- `DISPLAY` of string literals, numeric literals, and numeric variables
-- `ACCEPT` into numeric variables
+- Elementary `01`, `05`, `77`, and similar level-number items with `PIC 9(...)` or `PIC X(...)`, optional `VALUE`, optional elementary `OCCURS`, and elementary `REDEFINES` views when packed widths match
+- Signed numeric items with `PIC S9(...) COMP-5`
+- Group items with child tracking, packed-layout serialization for group `DISPLAY`, group `ACCEPT`, and group-to-group `MOVE`, plus redefining groups with child items when packed widths match
+- `DISPLAY` of string literals, numeric literals, numeric variables, and `PIC X` variables
+- `ACCEPT` into numeric variables and `PIC X` variables
 - `MOVE`
 - `ADD`, `SUBTRACT`, `MULTIPLY`, `DIVIDE`
 - `COMPUTE` with infix arithmetic
-- `FUNCTION MOD(...)` and `FUNCTION REM(...)` with two comma-separated arguments
+- `FUNCTION MOD(...)`, `FUNCTION REM(...)`, and `FUNCTION SQRT(...)`
 - `IF` / `ELSE` / `END-IF`
+- `EVALUATE` with a single numeric subject or `EVALUATE TRUE`, `WHEN`, `WHEN OTHER`, and `END-EVALUATE`
+- paragraph labels plus `PERFORM paragraph`
+- `PERFORM paragraph UNTIL ...`
 - `PERFORM UNTIL` / `END-PERFORM`
+- `PERFORM VARYING ... FROM ... BY ... UNTIL ... END-PERFORM`
+- restricted external `CALL "name"` with optional `USING BY VALUE`, `USING BY REFERENCE`, and `RETURNING`, including indexed numeric `BY VALUE` arguments and `PIC X` `BY REFERENCE` buffers
 - `STOP RUN`
+- multiline free-form procedure statements for the current subset, including `CALL`, `COMPUTE`, and `IF` conditions
+- simple indexed references like `ITEMS(3)` or `ITEMS(IDX)` for elementary `OCCURS` items and one-dimensional group `OCCURS` items
+- `PIC X` reference modification of the form `NAME(start:length)`
 - Operators inside expressions: `+ - * / = <> < > <= >= AND OR NOT`
+- simple alphanumeric equality/inequality comparisons
 - Legacy infix `MOD` is still accepted as a MiniCOBC extension
 
 ## Optimization Mode
@@ -54,9 +66,17 @@ It is still not a full optimizer. Expression simplification inside mixed variabl
 
 ## Deliberate constraints
 
-- One statement per line
-- Numeric working-storage only
 - Source is treated as free-form
+- Paragraph labels must still be terminated by a period
+- Multiline assembly currently applies to procedure statements; the compiler is still a lightweight parser rather than a full COBOL sentence engine
+- `EVALUATE` currently supports one subject only; `ALSO`, ranges like `THRU`, and table/indexed selectors are not yet implemented
+- Group operations and `REDEFINES` overlays currently use a packed byte buffer per overlay family rather than a full general COBOL storage model with arbitrary aliasing
+- One-dimensional group `OCCURS` is supported, but nested `OCCURS` and overlay families containing `OCCURS` items are still unsupported
+- Group `MOVE` still requires the same packed width and does not yet support `OCCURS` children
+- Group items still cannot appear directly inside expressions
+- Indexed references currently support one-dimensional `OCCURS` only, with a simple literal or scalar variable subscript
+- Alphanumeric expression support is still narrow: simple equality/inequality works, but general string arithmetic and richer string functions do not
+- External `CALL` support currently targets quoted C symbols; generic COBOL dynamic call/runtime semantics are not implemented
 - The compiler is line-oriented and intentionally small; it is not a full COBOL 85 implementation
 
 ## Demo
@@ -86,6 +106,32 @@ That test now checks both pipelines:
 2. `cobc -x -free`
 
 The core examples in `examples/` are valid free-form COBOL accepted by both compilers.
+
+For the new generic front-end slices specifically, run:
+
+```bash
+./scripts/test-generic-features.sh
+```
+
+That covers:
+
+- paragraph labels and `PERFORM paragraph`
+- restricted external `CALL` with `BY VALUE`
+- restricted external `CALL` with `BY REFERENCE`
+- multiline `CALL`
+- multiline `COMPUTE`
+- multiline `IF` conditions
+- `EVALUATE` with block `WHEN` arms
+- inline `WHEN ... MOVE ...` forms
+- scalar `PIC X` moves/displays
+- elementary `OCCURS` with numeric and alphanumeric indexed references
+- one-dimensional group `OCCURS` with indexed group `DISPLAY`, `ACCEPT`, and `MOVE`
+- grouped child items
+- group `DISPLAY`
+- group `ACCEPT`
+- group-to-group `MOVE`, including layout-changing moves when packed widths match
+- elementary `REDEFINES` views for `DISPLAY`, `MOVE`, `ACCEPT`, and numeric expressions
+- redefining groups with child overlays, including writes through either view
 
 ## Compatibility Mode
 
@@ -125,6 +171,34 @@ That writes:
 
 - `build/perf/chess-perft-compare.json`
 - `build/perf/chess-perft-compare.md`
+
+`MiniCOBC` can now compile the COBOL portion of [`acherm/agentic-cobol-doom`](https://github.com/acherm/agentic-cobol-doom) at commit `18ce52b3f7dd4d6d229d4a743513c39960959b44` through the generic front end. The key enabling features are signed `COMP-5`, paragraph `PERFORM UNTIL`, external `CALL` with indexed `BY VALUE` arguments and `PIC X` `BY REFERENCE` buffers, `FUNCTION SQRT`, and `PIC X` reference modification on redefining overlay views.
+
+Build the COBOL part of DOOM with `minicobc`:
+
+```bash
+bash ./scripts/build-cobol-doom.sh
+```
+
+That script translates `doom.cob` to C with `minicobc` and builds the result with plain `gcc`.
+
+Enable `minicobc`'s own optimization mode for that translation:
+
+```bash
+MINICOBC_OPT=1 bash ./scripts/build-cobol-doom.sh
+```
+
+Verify that the `minicobc`-translated build and the repo's own `cobc` build both start successfully under a bounded smoke test:
+
+```bash
+bash ./scripts/test-cobol-doom.sh
+```
+
+Compare DOOM builds with and without `minicobc`'s `OPT` mode:
+
+```bash
+bash ./scripts/compare-cobol-doom-opt.sh
+```
 
 ## Self-Host Path
 
