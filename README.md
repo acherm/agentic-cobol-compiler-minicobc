@@ -4,6 +4,20 @@
 
 The implementation lives in [src/minicobc.cob](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/src/minicobc.cob). It is built with GnuCOBOL, but the compiler itself is written entirely in COBOL.
 
+## Current Status
+
+As of 2026-03-30, `MiniCOBC` is a working subset COBOL compiler with correctness tests, performance harnesses, an optimization mode, a bootstrap check, and targeted compatibility support for larger external programs.
+
+- Generic compiler path: the shared `core` and `opt` corpus currently passes `11/11` cases, and the full benchmark passes `19/19` including the compatibility suite.
+- Direct comparison with GnuCOBOL on the generic `core` suite: `minicobc + gcc` is about `0.69x` `cobc` compile time and about `0.51x` to `0.52x` runtime on this machine.
+- Optimization mode: `OPT` now implements readonly `VALUE` propagation, local dead-store elimination, constant folding, loop-condition canonicalization, and width-aware integer selection. On the `core` suite, optimized `minicobc` is about `0.88x` baseline runtime.
+- Bootstrap: the current compiler source bootstraps through a dedicated `PROGRAM-ID. MINICOB.` self-host path, and the stage-1 compiler reproduces the same stage-2 C template.
+- Chess engine: the external COBOL chess engine at commit `faf0f163e9b2b4b6475262fc8f00fcaeeedf4919` builds and validates through a targeted compatibility path. On the default perft profile, the `minicobc`-built engine is about `1.14x` the runtime of the GnuCOBOL-built engine.
+
+Important caveat: the chess engine and current bootstrap path are compatibility-mode integrations, not yet examples of full generic COBOL front-end support.
+
+For a longer status snapshot with benchmark details, see `reports/current-status.md`.
+
 ## Supported subset
 
 - `IDENTIFICATION DIVISION`, `DATA DIVISION`, `WORKING-STORAGE SECTION`, `PROCEDURE DIVISION`
@@ -19,6 +33,24 @@ The implementation lives in [src/minicobc.cob](/Users/mathieuacher/SANDBOX/cobol
 - `STOP RUN`
 - Operators inside expressions: `+ - * / = <> < > <= >= AND OR NOT`
 - Legacy infix `MOD` is still accepted as a MiniCOBC extension
+
+## Optimization Mode
+
+`MiniCOBC` now has an optional optimization mode:
+
+```bash
+./build/bin/minicobc OPT input.cob output.c
+```
+
+The current opt mode is still conservative, but it now enables:
+
+- propagation of numeric `VALUE` items that are never written in the procedure division
+- local dead-store elimination for overwritten `MOVE` and `COMPUTE` assignments
+- constant folding for fully constant arithmetic, comparison, and boolean expressions
+- loop-condition canonicalization for simple counted `PERFORM UNTIL` shapes
+- width-aware C integer selection from `PIC 9(...)` widths
+
+It is still not a full optimizer. Expression simplification inside mixed variable/constant boolean chains and more aggressive strength reduction remain future work.
 
 ## Deliberate constraints
 
@@ -67,6 +99,33 @@ To verify those five programs against GnuCOBOL:
 ./scripts/test-agentic-game15.sh
 ```
 
+`MiniCOBC` also has a targeted multi-file compatibility path for [`acherm/agentic-chessengine-cobol-codex`](https://github.com/acherm/agentic-chessengine-cobol-codex) at commit `faf0f163e9b2b4b6475262fc8f00fcaeeedf4919`.
+
+That path recognizes the engine program IDs (`COBOCHESS`, `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `PERFT`, `TIMEUTIL`, `EVAL`, `SEARCH`, and `MOVE2UCI`) and emits the matching GnuCOBOL-generated C translation units plus required sidecar headers. It is still a repository-specific compatibility layer, not general support for the full GNUCobol feature set used by the engine.
+
+Build the chess engine with `minicobc`:
+
+```bash
+./scripts/build-chess-engine.sh
+```
+
+Verify the `minicobc`-built engine against the GnuCOBOL reference build:
+
+```bash
+./scripts/test-chess-engine.sh
+```
+
+Benchmark perft runtime for the `minicobc`-built engine against the usual GnuCOBOL build:
+
+```bash
+./scripts/compare-chess-perft.sh
+```
+
+That writes:
+
+- `build/perf/chess-perft-compare.json`
+- `build/perf/chess-perft-compare.md`
+
 ## Self-Host Path
 
 The current `src/minicobc.cob` is also supported through a dedicated `PROGRAM-ID. MINICOB.` compatibility path. That path is generated from the current compiler source with GnuCOBOL and packaged as a single C template in `templates/compat/minicob.c`.
@@ -96,6 +155,8 @@ That script:
 
 The benchmark design and workload definitions live in `benchmark/README.md` and `benchmark/cases.json`.
 
+For compiler optimization work, there is now a dedicated general-purpose optimization suite in `examples/opt/` with design notes in `benchmark/optimization-suite.md`.
+
 The benchmark now includes an embedded compiler comparison against GnuCOBOL, so each case records:
 
 - `minicobc` translation time
@@ -116,6 +177,12 @@ Run only the core suite:
 
 ```bash
 ./scripts/benchmark.sh --suite core
+```
+
+Run only the optimization suite:
+
+```bash
+./scripts/benchmark.sh --suite opt
 ```
 
 Run only the compatibility suite:
@@ -161,3 +228,14 @@ That writes:
 
 - `build/perf/selfhost-compare.json`
 - `build/perf/selfhost-compare.md`
+
+To compare baseline `minicobc`, optimized `minicobc`, and optimized GnuCOBOL on the compiler-focused suites:
+
+```bash
+./scripts/compare-minicobc-optimizations.sh --suite opt
+```
+
+That writes suite-specific reports such as:
+
+- `build/perf/minicobc-opt-compare-opt.json`
+- `build/perf/minicobc-opt-compare-opt.md`

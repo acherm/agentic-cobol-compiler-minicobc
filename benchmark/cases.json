@@ -4,6 +4,13 @@
       "id": "core/primes",
       "source": "examples/primes.cob",
       "stem": "primes",
+      "free_form": true,
+      "kind": "kernel",
+      "focus": [
+        "loops",
+        "conditionals",
+        "mod-arithmetic"
+      ],
       "args": [],
       "stdin": "",
       "oracle": {
@@ -15,6 +22,13 @@
       "id": "core/collatz",
       "source": "examples/collatz.cob",
       "stem": "collatz",
+      "free_form": true,
+      "kind": "kernel",
+      "focus": [
+        "branches",
+        "mod-arithmetic",
+        "recurrence"
+      ],
       "args": [],
       "stdin": "",
       "oracle": {
@@ -26,11 +40,151 @@
       "id": "core/gcd",
       "source": "examples/gcd.cob",
       "stem": "gcd",
+      "free_form": true,
+      "kind": "kernel",
+      "focus": [
+        "input",
+        "mod-arithmetic",
+        "loop-carried-state"
+      ],
       "args": [],
       "stdin": "1071\n462\n",
       "oracle": {
         "type": "file",
         "path": "expected/gcd.txt"
+      }
+    }
+  ],
+  "opt": [
+    {
+      "id": "opt/constfold",
+      "source": "examples/opt/constfold.cob",
+      "stem": "constfold",
+      "free_form": true,
+      "kind": "micro",
+      "focus": [
+        "constant-folding"
+      ],
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/opt/constfold.txt"
+      }
+    },
+    {
+      "id": "opt/constprop",
+      "source": "examples/opt/constprop.cob",
+      "stem": "constprop",
+      "free_form": true,
+      "kind": "micro",
+      "focus": [
+        "constant-propagation"
+      ],
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/opt/constprop.txt"
+      }
+    },
+    {
+      "id": "opt/deadstore",
+      "source": "examples/opt/deadstore.cob",
+      "stem": "deadstore",
+      "free_form": true,
+      "kind": "micro",
+      "focus": [
+        "dead-store-elimination"
+      ],
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/opt/deadstore.txt"
+      }
+    },
+    {
+      "id": "opt/strength",
+      "source": "examples/opt/strength.cob",
+      "stem": "strength",
+      "free_form": true,
+      "kind": "micro",
+      "focus": [
+        "strength-reduction"
+      ],
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/opt/strength.txt"
+      }
+    },
+    {
+      "id": "opt/boolchain",
+      "source": "examples/opt/boolchain.cob",
+      "stem": "boolchain",
+      "free_form": true,
+      "kind": "micro",
+      "focus": [
+        "boolean-simplification",
+        "constant-propagation"
+      ],
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/opt/boolchain.txt"
+      }
+    },
+    {
+      "id": "opt/loopcanon",
+      "source": "examples/opt/loopcanon.cob",
+      "stem": "loopcanon",
+      "free_form": true,
+      "kind": "micro",
+      "focus": [
+        "loop-canonicalization"
+      ],
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/opt/loopcanon.txt"
+      }
+    },
+    {
+      "id": "opt/smallwidth",
+      "source": "examples/opt/smallwidth.cob",
+      "stem": "smallwidth",
+      "free_form": true,
+      "kind": "micro",
+      "focus": [
+        "width-aware-integer-selection"
+      ],
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/opt/smallwidth.txt"
+      }
+    },
+    {
+      "id": "opt/lcg",
+      "source": "examples/opt/lcg.cob",
+      "stem": "lcg",
+      "free_form": true,
+      "kind": "kernel",
+      "focus": [
+        "mixed-arithmetic",
+        "recurrence",
+        "mod-arithmetic"
+      ],
+      "args": [],
+      "stdin": "",
+      "oracle": {
+        "type": "file",
+        "path": "expected/opt/lcg.txt"
       }
     }
   ],

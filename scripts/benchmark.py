@@ -34,11 +34,19 @@ def load_manifest(path):
         return json.load(handle)
 
 
+def manifest_suite_names(manifest):
+    return list(manifest.keys())
+
+
 def expand_cases(manifest, suite, compat_repo):
     selected = []
-    for suite_name in ("core", "compat"):
-        if suite != "all" and suite != suite_name:
-            continue
+    suite_names = manifest_suite_names(manifest)
+    if suite == "all":
+        selected_suites = suite_names
+    else:
+        selected_suites = [suite]
+
+    for suite_name in selected_suites:
         for case in manifest.get(suite_name, []):
             expanded = dict(case)
             expanded["suite"] = suite_name
@@ -80,9 +88,9 @@ def ensure_dirs():
         (ROOT / rel).mkdir(parents=True, exist_ok=True)
 
 
-def gnucobol_compile_command(source, binary, suite):
+def gnucobol_compile_command(source, binary, case):
     cmd = ["cobc", "-x"]
-    if suite == "core":
+    if case.get("free_form", False):
         cmd.append("-free")
     cmd.extend([source, "-o", str(binary)])
     return cmd
@@ -164,8 +172,10 @@ def compile_generated(source, stem, minicobc_path, cache):
     return result
 
 
-def compile_reference(source, stem, suite, cache):
-    cache_key = (source, suite)
+def compile_reference(case, cache):
+    source = case["source"]
+    stem = case["stem"]
+    cache_key = (source, case["suite"])
     if cache_key in cache:
         return cache[cache_key]
 
@@ -173,7 +183,7 @@ def compile_reference(source, stem, suite, cache):
     if binary.exists():
         binary.unlink()
 
-    cmd = gnucobol_compile_command(source, binary, suite)
+    cmd = gnucobol_compile_command(source, binary, case)
     completed, elapsed_ms = run_command(cmd)
     if completed.returncode != 0:
         result = {
@@ -216,6 +226,8 @@ def run_case(case, generated_cache, reference_cache, minicobc_path):
         "suite": case["suite"],
         "source": case["source"],
         "args": case["args"],
+        "kind": case.get("kind"),
+        "focus": case.get("focus", []),
     }
 
     if not compiled["ok"]:
@@ -259,9 +271,7 @@ def run_case(case, generated_cache, reference_cache, minicobc_path):
         expected_stdout = expected_path.read_text(encoding="utf-8")
         reference_meta = {"oracle": str(expected_path)}
     else:
-        reference = compile_reference(
-            case["source"], case["stem"], case["suite"], reference_cache
-        )
+        reference = compile_reference(case, reference_cache)
         if not reference["ok"]:
             result.update(
                 {
@@ -361,7 +371,7 @@ def perf_build_with_gnucobol(case):
     if binary.exists():
         binary.unlink()
 
-    cmd = gnucobol_compile_command(case["source"], binary, case["suite"])
+    cmd = gnucobol_compile_command(case["source"], binary, case)
     completed, elapsed_ms = run_command(cmd)
     if completed.returncode != 0:
         return {
@@ -566,6 +576,12 @@ def format_ratio(value):
     return f"{value:.2f}x"
 
 
+def format_ms(value):
+    if value is None:
+        return "-"
+    return f"{value:.2f}"
+
+
 def render_report(
     summary,
     performance_summary,
@@ -626,9 +642,9 @@ def render_report(
     for item in results:
         lines.append(
             f"| {item['id']} | {item['status']} | "
-            f"{item.get('translate_ms', 0):.2f} | "
-            f"{item.get('gcc_ms', 0):.2f} | "
-            f"{item.get('run_ms', 0):.2f} | "
+            f"{format_ms(item.get('translate_ms'))} | "
+            f"{format_ms(item.get('gcc_ms'))} | "
+            f"{format_ms(item.get('run_ms'))} | "
             f"{item.get('generated_c_lines', 0)} | "
             f"{item.get('generated_c_bytes', 0)} | "
             f"{item.get('binary_bytes', 0)} | "
@@ -702,9 +718,8 @@ def main():
     )
     parser.add_argument(
         "--suite",
-        choices=("all", "core", "compat"),
         default="all",
-        help="which suite to run",
+        help="which suite to run (all or a suite name from the manifest)",
     )
     parser.add_argument(
         "--compat-repo",
@@ -738,6 +753,17 @@ def main():
     manifest_path = Path(args.manifest)
     compat_repo = Path(args.compat_repo)
 
+    manifest = load_manifest(manifest_path)
+    available_suites = manifest_suite_names(manifest)
+
+    if args.suite != "all" and args.suite not in available_suites:
+        print(
+            "unknown suite "
+            f"{args.suite!r}; available suites: {', '.join(available_suites)}",
+            file=sys.stderr,
+        )
+        return 2
+
     if args.suite in ("all", "compat") and not compat_repo.exists():
         print(
             f"compatibility repo not found: {compat_repo}",
@@ -746,7 +772,6 @@ def main():
         return 2
 
     ensure_dirs()
-    manifest = load_manifest(manifest_path)
     cases = expand_cases(manifest, args.suite, compat_repo)
     minicobc = compile_minicobc()
 
