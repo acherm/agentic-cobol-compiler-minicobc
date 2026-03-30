@@ -1,6 +1,6 @@
 # MiniCOBC
 
-`MiniCOBC` is a small COBOL compiler written in COBOL. It compiles a practical COBOL subset into C, then `gcc` turns that generated C into native executables.
+`MiniCOBC` is a small COBOL compiler written in COBOL. It compiles a practical COBOL subset into C, then `gcc` turns that generated C into native executables. The project is validated not only on small sample programs, but also on non-trivial COBOL codebases including Game of 15 from [`acherm/agentic-cobol-game15tictactoe`](https://github.com/acherm/agentic-cobol-game15tictactoe) at commit `4ae3129ad1f5b6a81cb28c075864781891c0e7a1`, the chess engine from [`acherm/agentic-chessengine-cobol-codex`](https://github.com/acherm/agentic-chessengine-cobol-codex) at commit `faf0f163e9b2b4b6475262fc8f00fcaeeedf4919`, and the COBOL portion of DOOM from [`acherm/agentic-cobol-doom`](https://github.com/acherm/agentic-cobol-doom) at commit `18ce52b3f7dd4d6d229d4a743513c39960959b44`, alongside the local test corpus and bootstrap checks.
 
 The implementation lives in [src/minicobc.cob](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/src/minicobc.cob). It is built with GnuCOBOL, but the compiler itself is written entirely in COBOL.
 
@@ -18,6 +18,18 @@ As of 2026-03-30, `MiniCOBC` is a working subset COBOL compiler with correctness
 Important caveat: the chess engine and current bootstrap path are compatibility-mode integrations. DOOM is now a generic-front-end success case, but `MiniCOBC` is still intentionally far from full COBOL 85 coverage.
 
 For a longer status snapshot with benchmark details, see `reports/current-status.md`.
+
+## Validated Programs
+
+`MiniCOBC` is not just exercised on toy snippets. The repository currently validates the compiler on a mix of local COBOL workloads, self-host/bootstrap checks, and larger external COBOL codebases.
+
+- Local test corpus: the shared `core`, `opt`, and generic regression suites cover the sample programs in `examples/` plus targeted feature tests for `PERFORM`, `CALL`, `EVALUATE`, `PIC X`, `COMP-5`, `OCCURS`, indexed references, grouped items, `REDEFINES`, overlays, and other generic-front-end behavior.
+- Bootstrap/self-host: the current compiler source in [src/minicobc.cob](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/src/minicobc.cob) is exercised through the self-host bootstrap path, where a stage-1 `minicobc` recompiles the compiler and reproduces the same stage-2 generated C.
+- Game of 15 compatibility target: [`acherm/agentic-cobol-game15tictactoe`](https://github.com/acherm/agentic-cobol-game15tictactoe) at commit `4ae3129ad1f5b6a81cb28c075864781891c0e7a1` is supported through a targeted compatibility path for `GAME15`, `GAME15TREE`, `GAME015`, `GAME015TREE`, and `GAMEN`.
+- Chess engine compatibility target: [`acherm/agentic-chessengine-cobol-codex`](https://github.com/acherm/agentic-chessengine-cobol-codex) at commit `faf0f163e9b2b4b6475262fc8f00fcaeeedf4919` is supported through a targeted compatibility path and benchmarked with perft workloads against GnuCOBOL.
+- DOOM generic-front-end target: [`acherm/agentic-cobol-doom`](https://github.com/acherm/agentic-cobol-doom) at commit `18ce52b3f7dd4d6d229d4a743513c39960959b44` now builds through the generic `MiniCOBC` front end rather than a template-only compatibility path.
+
+That split matters: Game of 15 and the chess engine are still compatibility-mode integrations, while the local corpus and the COBOL DOOM build exercise the real generic compiler pipeline.
 
 ## Supported subset
 
