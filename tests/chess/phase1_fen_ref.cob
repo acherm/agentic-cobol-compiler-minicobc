@@ -1,0 +1,47 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. FENPHASE1.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       COPY "copybooks/types.cpy".
+
+       01 STARTPOS               PIC X(80)
+           VALUE "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".
+       01 WS-STATUS              PIC S9(4) COMP-5 VALUE 0.
+       01 OUT-N                  PIC -Z(17)9.
+
+       PROCEDURE DIVISION.
+           CALL "FEN" USING GAME-STATE STARTPOS WS-STATUS
+
+           MOVE WS-STATUS TO OUT-N
+           DISPLAY "STATUS " FUNCTION TRIM(OUT-N)
+           MOVE GS-SIDE-TO-MOVE TO OUT-N
+           DISPLAY "SIDE " FUNCTION TRIM(OUT-N)
+           MOVE GS-CASTLING TO OUT-N
+           DISPLAY "CASTLING " FUNCTION TRIM(OUT-N)
+           MOVE GS-EP-SQ TO OUT-N
+           DISPLAY "EP " FUNCTION TRIM(OUT-N)
+           MOVE GS-HALFMOVE TO OUT-N
+           DISPLAY "HALF " FUNCTION TRIM(OUT-N)
+           MOVE GS-FULLMOVE TO OUT-N
+           DISPLAY "FULL " FUNCTION TRIM(OUT-N)
+           MOVE GS-PIECE(1) TO OUT-N
+           DISPLAY "A1 " FUNCTION TRIM(OUT-N)
+           MOVE GS-PIECE(5) TO OUT-N
+           DISPLAY "E1 " FUNCTION TRIM(OUT-N)
+           MOVE GS-PIECE(17) TO OUT-N
+           DISPLAY "A2 " FUNCTION TRIM(OUT-N)
+           MOVE GS-PIECE(104) TO OUT-N
+           DISPLAY "H7 " FUNCTION TRIM(OUT-N)
+           MOVE GS-PIECE(116) TO OUT-N
+           DISPLAY "D8 " FUNCTION TRIM(OUT-N)
+           MOVE GS-PIECE(117) TO OUT-N
+           DISPLAY "E8 " FUNCTION TRIM(OUT-N)
+           MOVE GS-KSQ(1) TO OUT-N
+           DISPLAY "WKSQ " FUNCTION TRIM(OUT-N)
+           MOVE GS-KSQ(2) TO OUT-N
+           DISPLAY "BKSQ " FUNCTION TRIM(OUT-N)
+           MOVE GS-KEY TO OUT-N
+           DISPLAY "KEY " FUNCTION TRIM(OUT-N)
+
+           STOP RUN.

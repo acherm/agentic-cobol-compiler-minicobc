@@ -183,6 +183,31 @@ gcc -std=c99 -O2 build/generated/picx_refmod.c -o build/bin/picx_refmod
 ./build/bin/picx_refmod > build/out/picx_refmod.txt
 diff -u expected/generic/picx_refmod.txt build/out/picx_refmod.txt
 
+./build/bin/minicobc examples/generic/multiline_move_alpha.cob build/generated/multiline_move_alpha.c
+gcc -std=c99 -O2 build/generated/multiline_move_alpha.c -o build/bin/multiline_move_alpha
+./build/bin/multiline_move_alpha > build/out/multiline_move_alpha.txt
+diff -u expected/generic/multiline_move_alpha.txt build/out/multiline_move_alpha.txt
+
+./build/bin/minicobc examples/generic/display_trim_trailing.cob build/generated/display_trim_trailing.c
+gcc -std=c99 -O2 build/generated/display_trim_trailing.c -o build/bin/display_trim_trailing
+./build/bin/display_trim_trailing > build/out/display_trim_trailing.txt
+diff -u expected/generic/display_trim_trailing.txt build/out/display_trim_trailing.txt
+
+./build/bin/minicobc examples/generic/move_numeric_to_picx.cob build/generated/move_numeric_to_picx.c
+gcc -std=c99 -O2 build/generated/move_numeric_to_picx.c -o build/bin/move_numeric_to_picx
+./build/bin/move_numeric_to_picx > build/out/move_numeric_to_picx.txt
+diff -u expected/generic/move_numeric_to_picx.txt build/out/move_numeric_to_picx.txt
+
+./build/bin/minicobc examples/generic/copybook_consts.cob build/generated/copybook_consts.c
+gcc -std=c99 -O2 build/generated/copybook_consts.c -o build/bin/copybook_consts
+./build/bin/copybook_consts > build/out/copybook_consts.txt
+diff -u expected/generic/copybook_consts.txt build/out/copybook_consts.txt
+
+./build/bin/minicobc examples/generic/entry_before_paragraph.cob build/generated/entry_before_paragraph.c
+gcc -std=c99 -O2 build/generated/entry_before_paragraph.c -o build/bin/entry_before_paragraph
+./build/bin/entry_before_paragraph > build/out/entry_before_paragraph.txt
+diff -u expected/generic/entry_before_paragraph.txt build/out/entry_before_paragraph.txt
+
 ./build/bin/minicobc examples/generic/alpha_compare.cob build/generated/alpha_compare.c
 gcc -std=c99 -O2 build/generated/alpha_compare.c -o build/bin/alpha_compare
 ./build/bin/alpha_compare > build/out/alpha_compare.txt

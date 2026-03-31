@@ -10,7 +10,7 @@ Date: 2026-03-30
 - supports a correctness benchmark corpus shared with GnuCOBOL
 - has a first real optimization mode (`OPT`)
 - can bootstrap its current compiler source through a dedicated self-host path
-- can build and validate an external COBOL chess engine through a targeted compatibility path
+- can build and validate an external COBOL chess engine through a targeted compatibility path, with `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, and `PERFT` now also compiling through the generic front end in a dedicated phase-2 milestone harness
 - can build `game15.cob` and `gameN.cob` from the external puzzle repository through the generic front end
 - can build the COBOL portion of DOOM through the generic front end
 
@@ -22,7 +22,7 @@ The project is no longer just a proof of concept. It now has:
 - a compiler-focused optimization corpus
 - a bootstrap verification loop
 
-The main limitation remains scope: the generic compiler is still a subset compiler, while the chess engine, the remaining Game-of-15 tree and `game015*` variants, and the self-hosted compiler source are supported through repository-specific compatibility paths rather than full general COBOL front-end support. `game15.cob`, `gameN.cob`, and DOOM are now larger generic-front-end success cases, not just compatibility templates.
+The main limitation remains scope: the generic compiler is still a subset compiler, while the chess top-level driver plus the higher-level `SEARCH` / `EVAL` / `TIMEUTIL` / `MOVE2UCI` units, the remaining `game015*` variants, and the self-hosted compiler source are supported through repository-specific compatibility paths rather than full general COBOL front-end support. `game15.cob`, `game15tree.cob`, `gameN.cob`, DOOM, and now the chess `BOARD` / `FEN` / `ATTACK` / `MOVEGEN` / `MAKEMOVE` / `UNMAKEMOVE` / `PERFT` slice are larger generic-front-end success cases, not just compatibility templates.
 
 ## Compiler Scope
 
@@ -55,7 +55,7 @@ The general benchmark harness is correctness-first and now covers three suites:
 
 - `core`: `primes`, `collatz`, `gcd`
 - `opt`: `constfold`, `constprop`, `deadstore`, `strength`, `boolchain`, `loopcanon`, `smallwidth`, `lcg`
-- `compat`: the Game-of-15 repository workloads, with `game15` and `gameN` now generic and the other variants still compatibility-backed
+- `compat`: the Game-of-15 repository workloads, with `game15`, `game15tree`, and `gameN` now generic and the `game015*` variants still compatibility-backed
 
 Latest overall benchmark status from [build/benchmark/report.md](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/build/benchmark/report.md):
 
@@ -89,7 +89,7 @@ Per-case medians:
 
 Those numbers are local wall-clock measurements and should be treated as comparative signals, not universal claims.
 
-Compatibility-suite numbers still exist, but they are now mixed: `game15` and `gameN` exercise the generic subset compiler, while the tree and `game015*` programs still measure template-backed compatibility paths.
+Compatibility-suite numbers still exist, but they are now mixed: `game15`, `game15tree`, and `gameN` exercise the generic subset compiler, while the `game015*` programs still measure template-backed compatibility paths.
 
 ## Current Optimization Status
 
@@ -180,11 +180,38 @@ Current status:
 - repo: `external/agentic-chessengine-cobol-codex`
 - commit: `faf0f163e9b2b4b6475262fc8f00fcaeeedf4919`
 
-This support is implemented as a targeted multi-file compatibility path:
+End-to-end engine support is still implemented as a targeted multi-file compatibility path:
 
 - the compiler recognizes the engine program IDs
 - it emits matching generated C translation units and required sidecar headers
-- it does not yet compile that chess engine through the generic subset front end
+- it does not yet compile the whole chess engine through the generic subset front end
+
+There is now a real generic phase-2 milestone for the chess repo:
+
+- `BOARD` compiles through the generic `MiniCOBC` subprogram path
+- `FEN` compiles through the generic `MiniCOBC` subprogram path
+- `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, and `PERFT` also compile through the generic front end
+- internal chess-unit `CALL ... USING ...` chains now work through the real front end, including recursive `CALL "PERFT"`
+- `LOCAL-STORAGE` now works correctly for the generic recursive `PERFT` unit through per-call C shadow locals
+- [scripts/test-chess-phase1.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-phase1.sh) links the generated `BOARD` and `FEN` C units with a small C harness and checks the resulting `FEN(startpos)` state against a GnuCOBOL reference harness
+- [scripts/test-chess-phase2.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-phase2.sh) links the generated `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, and `PERFT` C units with a small C harness and checks `PERFT(startpos, depth=2)` against GnuCOBOL
+
+That phase-2 work required real generic compiler support for:
+
+- `LINKAGE SECTION`
+- `PROCEDURE DIVISION USING`
+- callable COBOL subprogram emission instead of `main`-only output
+- internal COBOL `CALL` with `BY REFERENCE` group/scalar argument marshaling
+- qualified `OF` references in the chess copybooks and move structures
+- `EXIT PERFORM`
+- multi-target numeric `MOVE`
+- recursive subprogram linkage preservation
+- per-call `LOCAL-STORAGE` shadow locals in generated C for recursive units
+- `GOBACK`
+- `END PROGRAM`
+- level `78` constants
+- `COPY` expansion before parsing
+- an implicit entry block before the first explicit paragraph
 
 Validation is covered by [scripts/test-chess-engine.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-engine.sh), which checks:
 

@@ -7,7 +7,10 @@ cd "$ROOT_DIR"
 ./scripts/demo.sh > /dev/null
 ./scripts/test-gnucobol-core.sh > /dev/null
 ./scripts/test-generic-features.sh > /dev/null
+./scripts/test-chess-phase1.sh > /dev/null
+./scripts/test-chess-phase2.sh > /dev/null
 ./scripts/test-game15-generic.sh > /dev/null
+./scripts/test-game15tree-generic.sh > /dev/null
 ./scripts/test-gameN-generic.sh > /dev/null
 
 diff -u expected/primes.txt build/out/primes.txt
@@ -34,5 +37,10 @@ diff -u expected/generic/redefines_alias.txt build/out/redefines_alias.txt
 diff -u expected/generic/redefines_text_view.txt build/out/redefines_text_view.txt
 diff -u expected/generic/redefines_numeric_view.txt build/out/redefines_numeric_view.txt
 diff -u expected/generic/redefines_accept.txt build/out/redefines_accept.txt
+diff -u expected/generic/multiline_move_alpha.txt build/out/multiline_move_alpha.txt
+diff -u expected/generic/display_trim_trailing.txt build/out/display_trim_trailing.txt
+diff -u expected/generic/move_numeric_to_picx.txt build/out/move_numeric_to_picx.txt
+diff -u expected/generic/copybook_consts.txt build/out/copybook_consts.txt
+diff -u expected/generic/entry_before_paragraph.txt build/out/entry_before_paragraph.txt
 
 echo "minicobc and GnuCOBOL demonstrations matched expected output"

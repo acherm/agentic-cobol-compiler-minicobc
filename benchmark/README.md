@@ -69,7 +69,7 @@ Oracle:
 Purpose:
 
 - Validate the pinned external Game-of-15 workloads
-- Cover two programs that now go through the generic front end (`game15.cob` and `gameN.cob`) plus the remaining variants that still use targeted compatibility paths
+- Cover three programs that now go through the generic front end (`game15.cob`, `game15tree.cob`, and `gameN.cob`) plus the remaining variants that still use targeted compatibility paths
 
 ## Cases
 
