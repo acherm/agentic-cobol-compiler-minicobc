@@ -188,6 +188,11 @@ gcc -std=c99 -O2 build/generated/compute_indexed_target.c -o build/bin/compute_i
 ./build/bin/compute_indexed_target > build/out/compute_indexed_target.txt
 diff -u expected/generic/compute_indexed_target.txt build/out/compute_indexed_target.txt
 
+./build/bin/minicobc examples/generic/move_index_expr.cob build/generated/move_index_expr.c
+gcc -std=c99 -O2 build/generated/move_index_expr.c -o build/bin/move_index_expr
+./build/bin/move_index_expr > build/out/move_index_expr.txt
+diff -u expected/generic/move_index_expr.txt build/out/move_index_expr.txt
+
 ./build/bin/minicobc examples/generic/continue_stmt.cob build/generated/continue_stmt.c
 gcc -std=c99 -O2 build/generated/continue_stmt.c -o build/bin/continue_stmt
 ./build/bin/continue_stmt > build/out/continue_stmt.txt

@@ -201,6 +201,7 @@ There is now a real generic phase-3 milestone for the chess repo:
 - `TIMEUTIL`, `EVAL`, `SEARCH`, and `MOVE2UCI` also compile through the generic front end
 - the helper-unit search stack now runs through real generic internal `CALL ... USING ...` chains rather than compatibility templates
 - [scripts/test-chess-phase3.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-phase3.sh) links the generated `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, `TIMEUTIL`, `EVAL`, `SEARCH`, and `MOVE2UCI` C units with a small C harness and checks a shallow `SEARCH` result against GnuCOBOL
+- [scripts/test-chess-phase3-direct.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-phase3-direct.sh) goes one level lower and compares direct `QUIESCE`, direct recursive `ALPHABETA`, and the first capture-reply traces on the phase-3 debug FEN against GnuCOBOL
 
 There is now a real generic phase-4 milestone for the chess repo:
 
@@ -233,6 +234,41 @@ Validation is covered by [scripts/test-chess-engine.sh](/Users/mathieuacher/SAND
 - a simple UCI depth-1 interaction
 
 The `minicobc`-built engine now matches the GnuCOBOL-built reference engine on those checked cases through the generic path rather than a compatibility template path.
+
+One useful debugging note changed the confidence level of that statement.
+
+During the generic chess bring-up, a deterministic phase-3 search mismatch appeared on the debug FEN:
+
+- `r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPB1PPP/R3K2R w KQkq - 0 1`
+
+The mismatch was not randomness:
+
+- repeated runs on both engines were stable
+- the same `bestmove` often appeared, but node counts and scores differed
+- direct `QUIESCE` / `ALPHABETA` tracing showed the first bad split below `d5e6`
+
+The root cause turned out to be a real compiler bug in generic indexed numeric `MOVE` source lowering:
+
+- `MOVE ARR(I - 1) TO X` compiled as `X = I - 1`
+- instead of `X = ARR[(I - 1) - 1]`
+
+That exact bug affected the pawn-structure loads in chess `EVAL`, notably statements such as:
+
+- `MOVE WPC(F-IX - 1) TO FRIEND-L`
+- `MOVE BPC(F-IX + 1) TO FRIEND-R`
+
+The fix is now in [src/minicobc.cob](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/src/minicobc.cob), and the regression is covered by:
+
+- [examples/generic/move_index_expr.cob](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/examples/generic/move_index_expr.cob)
+- [scripts/test-generic-features.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-generic-features.sh)
+
+After rebuilding the generic engine, the phase-3 debug FEN now matches GnuCOBOL at `go depth 2`:
+
+- `info depth 1 nodes 1531 score cp -408 pv d5e6`
+- `info depth 2 nodes 2855 score cp -408 pv d5e6`
+- `bestmove d5e6`
+
+So the earlier phase-3 search mismatch is no longer evidence that the generic chess binary is wrong on that target. The remaining benchmark caveat is about the size of the measured speedup, not about that specific search-equivalence failure.
 
 ## Chess Engine Performance Benchmark
 
@@ -271,6 +307,7 @@ Benchmark caveat:
 
 - the result is correctness-checked, but the size of the speedup is unusually large and should be treated as provisional rather than as a settled compiler-performance conclusion
 - the current validation is strong for the covered cases, but deeper `perft` depths, broader FEN coverage, and profiling are still warranted
+- there is now an additional independent depth-1 suite in [scripts/compare-chess-depth1-suite.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/compare-chess-depth1-suite.sh), adapted from the Brainfuck chess-engine `test_perft.py` style, to cross-check shallow move counts against `python-chess`
 - `MINICOBC_OPT=1` is currently not safe for chess: it miscompiles the engine and returns `nodes=0` on `perft`, so the reported chess numbers use plain `minicobc` plus `gcc -O2`, not `minicobc OPT`
 
 ## Generic DOOM Support

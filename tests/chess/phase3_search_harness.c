@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 typedef struct minicobc_group_GAME_STATE {
     short *m_GS_PIECE;
@@ -29,41 +30,51 @@ typedef struct minicobc_group_MOVE_REC {
 } minicobc_group_MOVE_REC;
 
 void minicobc_program_FEN(void **minicobc_args);
+void minicobc_program_BOARD(void **minicobc_args);
 void minicobc_program_SEARCH(void **minicobc_args);
 void minicobc_program_MOVE2UCI(void **minicobc_args);
 
-int main(void) {
-    static short gs_piece[128] = {0};
-    static short gs_side_to_move = 0;
-    static short gs_castling = 0;
-    static short gs_ep_sq = 0;
-    static short gs_halfmove = 0;
-    static short gs_fullmove = 0;
-    static short gs_ksq[2] = {0};
-    static short gs_ply = 0;
-    static long long gs_key = 0;
-    static short u_captured[256] = {0};
-    static short u_moved[256] = {0};
-    static short u_castling[256] = {0};
-    static short u_ep_sq[256] = {0};
-    static short u_halfmove[256] = {0};
-    static short u_fullmove[256] = {0};
-    static short u_king_sq[256] = {0};
-    static long long u_key[256] = {0};
-    static char startpos[257] =
-        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    static short status = 0;
-    static short depth = 2;
-    static long long time_limit_cs = 0;
-    static short move_from = 0;
-    static short move_to = 0;
-    static short move_promo = 0;
-    static short move_flags = 0;
-    static int move_score = 0;
-    static int out_score = 0;
-    static long long out_nodes = 0;
-    static char uci_buf[9] = {0};
+static void trim_right_spaces(char *text) {
+    size_t len = strlen(text);
+    while (len > 0 && text[len - 1] == ' ') {
+        text[len - 1] = '\0';
+        --len;
+    }
+}
 
+static void run_case(const char *label, const char *fen_text, short depth) {
+    short gs_piece[128] = {0};
+    short gs_side_to_move = 0;
+    short gs_castling = 0;
+    short gs_ep_sq = 0;
+    short gs_halfmove = 0;
+    short gs_fullmove = 0;
+    short gs_ksq[2] = {0};
+    short gs_ply = 0;
+    long long gs_key = 0;
+    short u_captured[256] = {0};
+    short u_moved[256] = {0};
+    short u_castling[256] = {0};
+    short u_ep_sq[256] = {0};
+    short u_halfmove[256] = {0};
+    short u_fullmove[256] = {0};
+    short u_king_sq[256] = {0};
+    long long u_key[256] = {0};
+    char fen_buf[257] = {0};
+    short status = 0;
+    long long time_limit_cs = 0;
+    short move_from = 0;
+    short move_to = 0;
+    short move_promo = 0;
+    short move_flags = 0;
+    int move_score = 0;
+    int out_score = 0;
+    long long out_nodes = 0;
+    char uci_buf[9] = {0};
+    void *board_args[1];
+    void *fen_args[3];
+    void *search_args[6];
+    void *uci_args[2];
     minicobc_group_GAME_STATE game_state = {
         gs_piece,
         &gs_side_to_move,
@@ -90,15 +101,18 @@ int main(void) {
         &move_flags,
         &move_score
     };
-    void *fen_args[3];
-    void *search_args[6];
-    void *uci_args[2];
+
+    snprintf(fen_buf, sizeof(fen_buf), "%s", fen_text);
+
+    board_args[0] = &game_state;
+    minicobc_program_BOARD(board_args);
 
     fen_args[0] = &game_state;
-    fen_args[1] = &startpos;
+    fen_args[1] = &fen_buf;
     fen_args[2] = &status;
     minicobc_program_FEN(fen_args);
 
+    printf("CASE %s\n", label);
     search_args[0] = &game_state;
     search_args[1] = &depth;
     search_args[2] = &time_limit_cs;
@@ -110,10 +124,24 @@ int main(void) {
     uci_args[0] = &bestmove;
     uci_args[1] = &uci_buf;
     minicobc_program_MOVE2UCI(uci_args);
+    trim_right_spaces(uci_buf);
 
     printf("STATUS %d\n", status);
     printf("BESTMOVE %s\n", uci_buf);
     printf("SCORE %d\n", out_score);
     printf("NODES %lld\n", out_nodes);
+}
+
+int main(void) {
+    run_case(
+        "STARTPOS",
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        2
+    );
+    run_case(
+        "KIWIPETE",
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPB1PPP/R3K2R w KQkq - 0 1",
+        2
+    );
     return 0;
 }

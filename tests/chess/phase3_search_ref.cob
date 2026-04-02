@@ -7,6 +7,8 @@
 
        01 STARTPOS               PIC X(80)
            VALUE "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".
+       01 KIWIPETE               PIC X(80)
+           VALUE "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPB1PPP/R3K2R w KQkq - 0 1".
        01 WS-STATUS              PIC S9(4) COMP-5 VALUE 0.
        01 WS-DEPTH               PIC S9(4) COMP-5 VALUE 2.
        01 WS-TIME-LIMIT-CS       PIC S9(18) COMP-5 VALUE 0.
@@ -17,6 +19,13 @@
        01 OUT-N                  PIC -Z(17)9.
 
        PROCEDURE DIVISION.
+           PERFORM RUN-CASE-STARTPOS
+           PERFORM RUN-CASE-KIWIPETE
+           STOP RUN.
+
+       RUN-CASE-STARTPOS.
+           DISPLAY "CASE STARTPOS"
+           CALL "BOARD" USING GAME-STATE
            CALL "FEN" USING GAME-STATE STARTPOS WS-STATUS
            CALL "SEARCH"
                USING GAME-STATE WS-DEPTH WS-TIME-LIMIT-CS
@@ -30,5 +39,22 @@
            DISPLAY "SCORE " FUNCTION TRIM(OUT-S)
            MOVE WS-OUT-NODES TO OUT-N
            DISPLAY "NODES " FUNCTION TRIM(OUT-N)
+           EXIT.
 
-           STOP RUN.
+       RUN-CASE-KIWIPETE.
+           DISPLAY "CASE KIWIPETE"
+           CALL "BOARD" USING GAME-STATE
+           CALL "FEN" USING GAME-STATE KIWIPETE WS-STATUS
+           CALL "SEARCH"
+               USING GAME-STATE WS-DEPTH WS-TIME-LIMIT-CS
+                     MOVE-REC WS-OUT-SCORE WS-OUT-NODES
+           CALL "MOVE2UCI" USING MOVE-REC UCI-BUF
+
+           MOVE WS-STATUS TO OUT-N
+           DISPLAY "STATUS " FUNCTION TRIM(OUT-N)
+           DISPLAY "BESTMOVE " FUNCTION TRIM(UCI-BUF)
+           MOVE WS-OUT-SCORE TO OUT-S
+           DISPLAY "SCORE " FUNCTION TRIM(OUT-S)
+           MOVE WS-OUT-NODES TO OUT-N
+           DISPLAY "NODES " FUNCTION TRIM(OUT-N)
+           EXIT.

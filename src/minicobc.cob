@@ -56,6 +56,7 @@ WORKING-STORAGE SECTION.
 01 WS-PROCEDURE-FUNC-OPEN           PIC X VALUE "N".
 01 WS-HAS-ENTRY-PARAGRAPH           PIC X VALUE "N".
 01 WS-HAS-DATA-INIT                PIC X VALUE "N".
+01 WS-UNIT-IS-RECURSIVE             PIC X VALUE "N".
 01 WS-STMT-IN-PROGRESS              PIC X VALUE "N".
 01 WS-EOF                           PIC X VALUE "N".
 01 WS-LINE-HAS-PERIOD               PIC X VALUE "N".
@@ -202,6 +203,7 @@ WORKING-STORAGE SECTION.
 01 WS-CALL-TARGET-C-NAME            PIC X(64) VALUE SPACES.
 01 WS-CALL-ARG-MODE                 PIC X(10) VALUE SPACES.
 01 WS-CALL-FIRST-ARG                PIC X VALUE "Y".
+01 WS-SELF-RECURSIVE-CALL           PIC X VALUE "N".
 01 WS-EVALUATE-C-NAME-WORK          PIC X(32) VALUE SPACES.
 01 WS-EVALUATE-MODE-WORK            PIC X(8) VALUE SPACES.
 01 WS-REF-C-EXPR                    PIC X(512) VALUE SPACES.
@@ -395,6 +397,12 @@ WORKING-STORAGE SECTION.
 01 WS-SUPPORT-TABLE.
     05 WS-SUPPORT-NAME OCCURS 4 TIMES.
         10 WS-SUPPORT-FILENAME      PIC X(64).
+
+01 CALL-COPY-TABLE.
+    05 CALL-COPY-ENTRY OCCURS 32 TIMES.
+        10 CALL-COPY-NAME           PIC X(64).
+        10 CALL-COPY-TARGET         PIC X(512).
+        10 CALL-COPY-KIND           PIC X VALUE SPACE.
 
 PROCEDURE DIVISION.
 MAIN.
@@ -2139,10 +2147,17 @@ HANDLE-LINE.
             PERFORM RESET-CURRENT-UNIT-STATE
         END-IF
         MOVE SPACES TO WS-PROGRAM-NAME
+        MOVE "N" TO WS-UNIT-IS-RECURSIVE
         IF WS-TOKEN-COUNT >= 2
             MOVE TOKEN-UPPER(2) TO WS-PROGRAM-NAME
             PERFORM BUILD-PROGRAM-C-NAME
             PERFORM BUILD-UNIT-HELPER-NAMES
+            PERFORM VARYING WS-WORK-INDEX FROM 3 BY 1
+                UNTIL WS-WORK-INDEX > WS-TOKEN-COUNT
+                IF TOKEN-UPPER(WS-WORK-INDEX) = "RECURSIVE"
+                    MOVE "Y" TO WS-UNIT-IS-RECURSIVE
+                END-IF
+            END-PERFORM
         END-IF
         EXIT PARAGRAPH
     END-IF
@@ -2267,7 +2282,6 @@ OPEN-IMPLICIT-PROCEDURE-FUNCTION.
     IF WS-IS-SUBPROGRAM = "Y"
         PERFORM EMIT-UNIT-INIT-CALL
         PERFORM EMIT-SUBPROGRAM-STATE-PROLOGUE
-        PERFORM EMIT-LOCAL-STORAGE-SHADOWS
     ELSE
         MOVE "minicobc_argc = argc;" TO WS-EMIT-PAYLOAD
         PERFORM EMIT-LINE
@@ -2505,6 +2519,9 @@ HANDLE-DATA-LINE.
         END-IF
         PERFORM ASSIGN-OCCURS-CONTEXT
         PERFORM REGISTER-SYMBOL-WITH-OPEN-GROUPS
+        IF SYMBOL-IS-EXTERNAL(WS-SYMBOL-COUNT) = "Y"
+            PERFORM BUILD-EXTERNAL-C-NAME
+        END-IF
         ADD 1 TO WS-GROUP-DEPTH
         IF WS-GROUP-DEPTH > 64
             MOVE "too many nested groups" TO WS-ERROR-MESSAGE
@@ -2570,6 +2587,9 @@ HANDLE-DATA-LINE.
 
     PERFORM ASSIGN-OCCURS-CONTEXT
     PERFORM REGISTER-SYMBOL-WITH-OPEN-GROUPS
+    IF SYMBOL-IS-EXTERNAL(WS-SYMBOL-COUNT) = "Y"
+        PERFORM BUILD-EXTERNAL-C-NAME
+    END-IF
 
     IF SYMBOL-EMIT-DECL(WS-SYMBOL-COUNT) = "Y"
         IF SYMBOL-KIND(WS-SYMBOL-COUNT) = "A"
@@ -3985,6 +4005,49 @@ BUILD-LINKAGE-BIND-NAME.
     END-STRING
     .
 
+BUILD-EXTERNAL-C-NAME.
+    MOVE SPACES TO SYMBOL-C-NAME(WS-SYMBOL-COUNT)
+    MOVE 1 TO WS-APPEND-PTR
+    STRING "MINICOBC_EXT" DELIMITED BY SIZE
+        INTO SYMBOL-C-NAME(WS-SYMBOL-COUNT) WITH POINTER WS-APPEND-PTR
+    END-STRING
+
+    MOVE 0 TO WS-WORK-INDEX-2
+    PERFORM VARYING WS-WORK-INDEX FROM 1 BY 1
+        UNTIL WS-WORK-INDEX > WS-GROUP-DEPTH
+        IF SYMBOL-IS-EXTERNAL(GROUP-SYMBOL-INDEX(WS-WORK-INDEX)) = "Y" AND
+            WS-WORK-INDEX-2 = 0
+            MOVE WS-WORK-INDEX TO WS-WORK-INDEX-2
+        END-IF
+    END-PERFORM
+
+    IF WS-WORK-INDEX-2 > 0
+        PERFORM VARYING WS-WORK-INDEX FROM WS-WORK-INDEX-2 BY 1
+            UNTIL WS-WORK-INDEX > WS-GROUP-DEPTH
+            MOVE SYMBOL-NAME(GROUP-SYMBOL-INDEX(WS-WORK-INDEX))
+                TO WS-UPPER-WORK
+            INSPECT WS-UPPER-WORK REPLACING ALL "-" BY "_"
+            STRING "_" DELIMITED BY SIZE
+                INTO SYMBOL-C-NAME(WS-SYMBOL-COUNT)
+                WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(WS-UPPER-WORK) DELIMITED BY SIZE
+                INTO SYMBOL-C-NAME(WS-SYMBOL-COUNT)
+                WITH POINTER WS-APPEND-PTR
+            END-STRING
+        END-PERFORM
+    END-IF
+
+    MOVE SYMBOL-NAME(WS-SYMBOL-COUNT) TO WS-UPPER-WORK
+    INSPECT WS-UPPER-WORK REPLACING ALL "-" BY "_"
+    STRING "_" DELIMITED BY SIZE
+        INTO SYMBOL-C-NAME(WS-SYMBOL-COUNT) WITH POINTER WS-APPEND-PTR
+    END-STRING
+    STRING FUNCTION TRIM(WS-UPPER-WORK) DELIMITED BY SIZE
+        INTO SYMBOL-C-NAME(WS-SYMBOL-COUNT) WITH POINTER WS-APPEND-PTR
+    END-STRING
+    .
+
 BUILD-SAVED-SYMBOL-NAME.
     MOVE SPACES TO WS-SAVE-C-NAME
     MOVE 1 TO WS-APPEND-PTR
@@ -4007,6 +4070,248 @@ BUILD-SAVED-LINKAGE-NAME.
         DELIMITED BY SIZE
         INTO WS-SAVE-C-NAME WITH POINTER WS-APPEND-PTR
     END-STRING
+    .
+
+BUILD-CALL-COPY-NAME.
+    MOVE SPACES TO WS-ARG-WORK
+    MOVE 1 TO WS-APPEND-PTR
+    STRING "minicobc_call_copy_" DELIMITED BY SIZE
+        INTO WS-ARG-WORK WITH POINTER WS-APPEND-PTR
+    END-STRING
+    MOVE WS-USING-INDEX TO WS-PLAIN-NUMERIC
+    PERFORM LOAD-PLAIN-INTEGER-TEXT
+    STRING FUNCTION TRIM(WS-PLAIN-TEXT) DELIMITED BY SIZE
+        INTO WS-ARG-WORK WITH POINTER WS-APPEND-PTR
+    END-STRING
+    .
+
+EMIT-LOCAL-STORAGE-SAVE-BLOCK.
+    PERFORM VARYING WS-WORK-INDEX FROM 1 BY 1
+        UNTIL WS-WORK-INDEX > WS-SYMBOL-COUNT
+        IF WS-WORK-INDEX > WS-UNIT-SYMBOL-START AND
+            (SYMBOL-STORAGE-CLASS(WS-WORK-INDEX) = "T" OR
+            (WS-UNIT-IS-RECURSIVE = "Y" AND
+            SYMBOL-STORAGE-CLASS(WS-WORK-INDEX) = "W")) AND
+            SYMBOL-KIND(WS-WORK-INDEX) NOT = "G" AND
+            SYMBOL-EMIT-DECL(WS-WORK-INDEX) = "Y" AND
+            SYMBOL-IS-EXTERNAL(WS-WORK-INDEX) NOT = "Y"
+            MOVE WS-WORK-INDEX TO WS-SYMBOL-INDEX
+            PERFORM BUILD-SAVED-SYMBOL-NAME
+
+            MOVE SPACES TO WS-EMIT-PAYLOAD
+            MOVE 1 TO WS-APPEND-PTR
+            STRING "char " DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(WS-SAVE-C-NAME) DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING "[sizeof(" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING ")];" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            PERFORM EMIT-LINE
+
+            MOVE SPACES TO WS-EMIT-PAYLOAD
+            MOVE 1 TO WS-APPEND-PTR
+            STRING "memcpy(" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(WS-SAVE-C-NAME) DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING ", &" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING ", sizeof(" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING "));" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            PERFORM EMIT-LINE
+        END-IF
+    END-PERFORM
+    .
+
+EMIT-LOCAL-STORAGE-RESET-BLOCK.
+    PERFORM VARYING WS-WORK-INDEX FROM 1 BY 1
+        UNTIL WS-WORK-INDEX > WS-SYMBOL-COUNT
+        IF WS-WORK-INDEX > WS-UNIT-SYMBOL-START AND
+            (SYMBOL-STORAGE-CLASS(WS-WORK-INDEX) = "T" OR
+            (WS-UNIT-IS-RECURSIVE = "Y" AND
+            SYMBOL-STORAGE-CLASS(WS-WORK-INDEX) = "W")) AND
+            SYMBOL-KIND(WS-WORK-INDEX) NOT = "G" AND
+            SYMBOL-EMIT-DECL(WS-WORK-INDEX) = "Y" AND
+            SYMBOL-IS-EXTERNAL(WS-WORK-INDEX) NOT = "Y"
+            MOVE WS-WORK-INDEX TO WS-SYMBOL-INDEX
+            PERFORM LOAD-EFFECTIVE-OCCURS
+
+            MOVE SPACES TO WS-EMIT-PAYLOAD
+            MOVE 1 TO WS-APPEND-PTR
+            STRING "memset(&" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING ", 0, sizeof(" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING "));" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            PERFORM EMIT-LINE
+
+            IF SYMBOL-KIND(WS-SYMBOL-INDEX) = "A"
+                IF SYMBOL-HAS-VALUE(WS-SYMBOL-INDEX) = "Y"
+                    MOVE SPACES TO WS-EMIT-PAYLOAD
+                    MOVE 1 TO WS-APPEND-PTR
+                    STRING "minicobc_alpha_write(" DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                        DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING ", " DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    MOVE SYMBOL-DISPLAY-WIDTH(WS-SYMBOL-INDEX)
+                        TO WS-PLAIN-NUMERIC
+                    PERFORM LOAD-PLAIN-INTEGER-TEXT
+                    STRING FUNCTION TRIM(WS-PLAIN-TEXT) DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING ", " DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING FUNCTION TRIM(SYMBOL-VALUE-TEXT(WS-SYMBOL-INDEX))
+                        DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING ");" DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    PERFORM EMIT-LINE
+                END-IF
+            ELSE
+                IF SYMBOL-HAS-VALUE(WS-SYMBOL-INDEX) = "Y"
+                    IF WS-EFFECTIVE-OCCURS > 1
+                        MOVE SPACES TO WS-EMIT-PAYLOAD
+                        MOVE 1 TO WS-APPEND-PTR
+                        STRING "for (int minicobc_local_i = 0; minicobc_local_i < "
+                            DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        MOVE WS-EFFECTIVE-OCCURS TO WS-PLAIN-NUMERIC
+                        PERFORM LOAD-PLAIN-INTEGER-TEXT
+                        STRING FUNCTION TRIM(WS-PLAIN-TEXT) DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING "; ++minicobc_local_i) " DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                            DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING "[minicobc_local_i] = " DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING FUNCTION TRIM(SYMBOL-VALUE-TEXT(WS-SYMBOL-INDEX))
+                            DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING ";" DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        PERFORM EMIT-LINE
+                    ELSE
+                        MOVE SPACES TO WS-EMIT-PAYLOAD
+                        MOVE 1 TO WS-APPEND-PTR
+                        STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                            DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING " = " DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING FUNCTION TRIM(SYMBOL-VALUE-TEXT(WS-SYMBOL-INDEX))
+                            DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING ";" DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        PERFORM EMIT-LINE
+                    END-IF
+                END-IF
+            END-IF
+        END-IF
+    END-PERFORM
+    .
+
+EMIT-LOCAL-STORAGE-RESTORE-BLOCK.
+    PERFORM VARYING WS-WORK-INDEX FROM WS-SYMBOL-COUNT BY -1
+        UNTIL WS-WORK-INDEX < 1
+        IF WS-WORK-INDEX > WS-UNIT-SYMBOL-START AND
+            (SYMBOL-STORAGE-CLASS(WS-WORK-INDEX) = "T" OR
+            (WS-UNIT-IS-RECURSIVE = "Y" AND
+            SYMBOL-STORAGE-CLASS(WS-WORK-INDEX) = "W")) AND
+            SYMBOL-KIND(WS-WORK-INDEX) NOT = "G" AND
+            SYMBOL-EMIT-DECL(WS-WORK-INDEX) = "Y" AND
+            SYMBOL-IS-EXTERNAL(WS-WORK-INDEX) NOT = "Y"
+            MOVE WS-WORK-INDEX TO WS-SYMBOL-INDEX
+            PERFORM BUILD-SAVED-SYMBOL-NAME
+
+            MOVE SPACES TO WS-EMIT-PAYLOAD
+            MOVE 1 TO WS-APPEND-PTR
+            STRING "memcpy(&" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING ", " DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(WS-SAVE-C-NAME) DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING ", sizeof(" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-INDEX))
+                DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            STRING "));" DELIMITED BY SIZE
+                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+            END-STRING
+            PERFORM EMIT-LINE
+        END-IF
+    END-PERFORM
     .
 
 EMIT-SUBPROGRAM-STATE-PROLOGUE.
@@ -4061,12 +4366,16 @@ EMIT-SUBPROGRAM-STATE-PROLOGUE.
         PERFORM EMIT-LINE
     END-PERFORM
 
+    PERFORM EMIT-LOCAL-STORAGE-SAVE-BLOCK
     PERFORM EMIT-SUBPROGRAM-BINDINGS
+    PERFORM EMIT-LOCAL-STORAGE-RESET-BLOCK
     .
 
 EMIT-SUBPROGRAM-RETURN-BLOCK.
     MOVE "minicobc_return:" TO WS-EMIT-PAYLOAD
     PERFORM EMIT-LINE
+
+    PERFORM EMIT-LOCAL-STORAGE-RESTORE-BLOCK
 
     PERFORM VARYING WS-WORK-INDEX FROM WS-USING-COUNT BY -1
         UNTIL WS-WORK-INDEX < 1
@@ -5893,9 +6202,15 @@ EMIT-NUMERIC-DECL.
 
     MOVE SPACES TO WS-EMIT-PAYLOAD
     MOVE 1 TO WS-APPEND-PTR
-    STRING "static " DELIMITED BY SIZE
-        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
-    END-STRING
+    IF SYMBOL-IS-EXTERNAL(WS-SYMBOL-COUNT) = "Y"
+        STRING "__attribute__((weak)) " DELIMITED BY SIZE
+            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+        END-STRING
+    ELSE
+        STRING "static " DELIMITED BY SIZE
+            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+        END-STRING
+    END-IF
     STRING FUNCTION TRIM(SYMBOL-C-TYPE(WS-SYMBOL-COUNT)) DELIMITED BY SIZE
         INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
     END-STRING
@@ -5952,9 +6267,15 @@ EMIT-ALPHA-DECL.
 
     MOVE SPACES TO WS-EMIT-PAYLOAD
     MOVE 1 TO WS-APPEND-PTR
-    STRING "static char " DELIMITED BY SIZE
-        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
-    END-STRING
+    IF SYMBOL-IS-EXTERNAL(WS-SYMBOL-COUNT) = "Y"
+        STRING "__attribute__((weak)) char " DELIMITED BY SIZE
+            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+        END-STRING
+    ELSE
+        STRING "static char " DELIMITED BY SIZE
+            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+        END-STRING
+    END-IF
     STRING FUNCTION TRIM(SYMBOL-C-NAME(WS-SYMBOL-COUNT)) DELIMITED BY SIZE
         INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
     END-STRING
@@ -7245,6 +7566,35 @@ COMPILE-MOVE.
             INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
         END-STRING
         STRING ");" DELIMITED BY SIZE
+            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+        END-STRING
+        IF SYMBOL-OVERLAY-ROOT(WS-GROUP-TARGET-INDEX) > 0
+            PERFORM FLUSH-PENDING-ASSIGNMENT
+            PERFORM EMIT-LINE
+            MOVE WS-GROUP-TARGET-INDEX TO WS-SYMBOL-INDEX
+            PERFORM EMIT-OVERLAY-SYNC-CALL
+        ELSE
+            PERFORM QUEUE-ASSIGNMENT
+        END-IF
+        EXIT PARAGRAPH
+    END-IF
+
+    MOVE 2 TO WS-REF-START
+    PERFORM RESOLVE-REFERENCE
+    IF WS-REF-OK = "Y" AND WS-REF-NEXT-POS = WS-FOUND-POS AND
+        SYMBOL-KIND(WS-SYMBOL-INDEX) = "N"
+        MOVE SPACES TO WS-EMIT-PAYLOAD
+        MOVE 1 TO WS-APPEND-PTR
+        STRING FUNCTION TRIM(WS-TARGET-C-NAME) DELIMITED BY SIZE
+            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+        END-STRING
+        STRING " = " DELIMITED BY SIZE
+            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+        END-STRING
+        STRING FUNCTION TRIM(WS-REF-C-EXPR) DELIMITED BY SIZE
+            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+        END-STRING
+        STRING ";" DELIMITED BY SIZE
             INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
         END-STRING
         IF SYMBOL-OVERLAY-ROOT(WS-GROUP-TARGET-INDEX) > 0
@@ -8785,6 +9135,17 @@ COMPILE-INTERNAL-CALL.
     MOVE "{" TO WS-EMIT-PAYLOAD
     PERFORM EMIT-LINE
     ADD 1 TO WS-INDENT-LEVEL
+    MOVE "N" TO WS-SELF-RECURSIVE-CALL
+    IF WS-UNIT-IS-RECURSIVE = "Y" AND
+        FUNCTION TRIM(WS-CALL-NAME-WORK) = FUNCTION TRIM(WS-PROGRAM-NAME)
+        MOVE "Y" TO WS-SELF-RECURSIVE-CALL
+    END-IF
+    PERFORM VARYING WS-WORK-INDEX FROM 1 BY 1
+        UNTIL WS-WORK-INDEX > 32
+        MOVE SPACES TO CALL-COPY-NAME(WS-WORK-INDEX)
+        MOVE SPACES TO CALL-COPY-TARGET(WS-WORK-INDEX)
+        MOVE SPACE TO CALL-COPY-KIND(WS-WORK-INDEX)
+    END-PERFORM
 
     IF WS-CALL-USING-POS > 0
         IF WS-CALL-RETURNING-POS > 0
@@ -8918,7 +9279,122 @@ COMPILE-INTERNAL-CALL.
                     END-IF
 
                     MOVE WS-REF-SYMBOL-INDEX TO WS-SYMBOL-INDEX
-                    IF SYMBOL-KIND(WS-SYMBOL-INDEX) = "G"
+                    IF WS-SELF-RECURSIVE-CALL = "Y" AND
+                        SYMBOL-STORAGE-CLASS(WS-SYMBOL-INDEX) NOT = "L" AND
+                        SYMBOL-IS-EXTERNAL(WS-SYMBOL-INDEX) NOT = "Y"
+                        IF SYMBOL-KIND(WS-SYMBOL-INDEX) = "G"
+                            MOVE
+                                "recursive self-call with local group actuals is not supported yet"
+                                TO WS-ERROR-MESSAGE
+                            PERFORM FAIL-COMPILATION
+                        END-IF
+                        PERFORM BUILD-CALL-COPY-NAME
+                        MOVE FUNCTION TRIM(WS-ARG-WORK)
+                            TO CALL-COPY-NAME(WS-USING-INDEX)
+                        MOVE FUNCTION TRIM(WS-REF-C-EXPR)
+                            TO CALL-COPY-TARGET(WS-USING-INDEX)
+                        MOVE SYMBOL-KIND(WS-SYMBOL-INDEX)
+                            TO CALL-COPY-KIND(WS-USING-INDEX)
+
+                        IF SYMBOL-KIND(WS-SYMBOL-INDEX) = "A"
+                            MOVE SPACES TO WS-EMIT-PAYLOAD
+                            MOVE 1 TO WS-APPEND-PTR
+                            STRING "char " DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING FUNCTION TRIM(WS-ARG-WORK)
+                                DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING "[sizeof(" DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING FUNCTION TRIM(WS-REF-C-EXPR)
+                                DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING ")];" DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            PERFORM EMIT-LINE
+
+                            MOVE SPACES TO WS-EMIT-PAYLOAD
+                            MOVE 1 TO WS-APPEND-PTR
+                            STRING "memcpy(" DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING FUNCTION TRIM(WS-ARG-WORK)
+                                DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING ", " DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING FUNCTION TRIM(WS-REF-C-EXPR)
+                                DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING ", sizeof(" DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING FUNCTION TRIM(WS-REF-C-EXPR)
+                                DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING "));" DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            PERFORM EMIT-LINE
+                        ELSE
+                            MOVE SPACES TO WS-EMIT-PAYLOAD
+                            MOVE 1 TO WS-APPEND-PTR
+                            STRING FUNCTION TRIM(SYMBOL-C-TYPE(WS-SYMBOL-INDEX))
+                                DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING " " DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING FUNCTION TRIM(WS-ARG-WORK)
+                                DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING " = " DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING FUNCTION TRIM(WS-REF-C-EXPR)
+                                DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            STRING ";" DELIMITED BY SIZE
+                                INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                            END-STRING
+                            PERFORM EMIT-LINE
+                        END-IF
+
+                        MOVE SPACES TO WS-EMIT-PAYLOAD
+                        MOVE 1 TO WS-APPEND-PTR
+                        STRING "minicobc_call_args[" DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        MOVE WS-USING-INDEX TO WS-PLAIN-NUMERIC
+                        SUBTRACT 1 FROM WS-PLAIN-NUMERIC
+                        PERFORM LOAD-PLAIN-INTEGER-TEXT
+                        STRING FUNCTION TRIM(WS-PLAIN-TEXT) DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING "] = &" DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING FUNCTION TRIM(WS-ARG-WORK) DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        STRING ";" DELIMITED BY SIZE
+                            INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                        END-STRING
+                        PERFORM EMIT-LINE
+                    ELSE
+                        IF SYMBOL-KIND(WS-SYMBOL-INDEX) = "G"
                         IF WS-REF-HAS-INDEX = "Y"
                             MOVE "indexed group actuals are not supported yet"
                                 TO WS-ERROR-MESSAGE
@@ -9052,6 +9528,7 @@ COMPILE-INTERNAL-CALL.
                         END-STRING
                         PERFORM EMIT-LINE
                     END-IF
+                    END-IF
                     MOVE WS-REF-NEXT-POS TO WS-WORK-INDEX-3
                 END-IF
             END-IF
@@ -9066,6 +9543,55 @@ COMPILE-INTERNAL-CALL.
             INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
         END-STRING
         PERFORM EMIT-LINE
+        PERFORM VARYING WS-WORK-INDEX FROM 1 BY 1
+            UNTIL WS-WORK-INDEX > WS-USING-INDEX
+            IF FUNCTION TRIM(CALL-COPY-NAME(WS-WORK-INDEX)) NOT = SPACES
+                MOVE SPACES TO WS-EMIT-PAYLOAD
+                MOVE 1 TO WS-APPEND-PTR
+                IF CALL-COPY-KIND(WS-WORK-INDEX) = "A"
+                    STRING "memcpy(" DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING FUNCTION TRIM(CALL-COPY-TARGET(WS-WORK-INDEX))
+                        DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING ", " DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING FUNCTION TRIM(CALL-COPY-NAME(WS-WORK-INDEX))
+                        DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING ", sizeof(" DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING FUNCTION TRIM(CALL-COPY-TARGET(WS-WORK-INDEX))
+                        DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING "));" DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                ELSE
+                    STRING FUNCTION TRIM(CALL-COPY-TARGET(WS-WORK-INDEX))
+                        DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING " = " DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING FUNCTION TRIM(CALL-COPY-NAME(WS-WORK-INDEX))
+                        DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                    STRING ";" DELIMITED BY SIZE
+                        INTO WS-EMIT-PAYLOAD WITH POINTER WS-APPEND-PTR
+                    END-STRING
+                END-IF
+                PERFORM EMIT-LINE
+            END-IF
+        END-PERFORM
     ELSE
         MOVE SPACES TO WS-EMIT-PAYLOAD
         MOVE 1 TO WS-APPEND-PTR
@@ -10168,11 +10694,25 @@ APPEND-PLAIN-EXPRESSION-TOKEN.
             ELSE
                 MOVE WS-APPEND-PTR TO WS-SAVED-APPEND-PTR
                 MOVE WS-WORK-INDEX TO WS-REF-START
+                MOVE "N" TO WS-APPEND-REF-OK
+                MOVE SPACES TO WS-APPEND-REF-C-EXPR
+                MOVE 0 TO WS-APPEND-REF-NEXT-POS
+                MOVE 0 TO WS-APPEND-SYMBOL-INDEX
                 PERFORM RESOLVE-REFERENCE
-                MOVE WS-REF-RESULT-OK TO WS-APPEND-REF-OK
-                MOVE WS-REF-RESULT-C-EXPR TO WS-APPEND-REF-C-EXPR
-                MOVE WS-REF-RESULT-NEXT-POS TO WS-APPEND-REF-NEXT-POS
-                MOVE WS-REF-RESULT-SYMBOL-INDEX TO WS-APPEND-SYMBOL-INDEX
+                IF WS-REF-OK = "Y" AND
+                    WS-REF-NEXT-POS > WS-REF-START AND
+                    WS-REF-NEXT-POS - 1 <= WS-EXPR-END
+                    MOVE "Y" TO WS-APPEND-REF-OK
+                    MOVE WS-REF-C-EXPR TO WS-APPEND-REF-C-EXPR
+                    MOVE WS-REF-NEXT-POS TO WS-APPEND-REF-NEXT-POS
+                    MOVE WS-SYMBOL-INDEX TO WS-APPEND-SYMBOL-INDEX
+                ELSE
+                    MOVE WS-REF-RESULT-OK TO WS-APPEND-REF-OK
+                    MOVE WS-REF-RESULT-C-EXPR TO WS-APPEND-REF-C-EXPR
+                    MOVE WS-REF-RESULT-NEXT-POS TO WS-APPEND-REF-NEXT-POS
+                    MOVE WS-REF-RESULT-SYMBOL-INDEX
+                        TO WS-APPEND-SYMBOL-INDEX
+                END-IF
                 IF WS-WORK-INDEX + 1 <= WS-EXPR-END AND
                     TOKEN-UPPER(WS-WORK-INDEX + 1) = "OF"
                     CONTINUE
@@ -10403,6 +10943,11 @@ TRY-RESOLVE-INDEX-REFERENCE.
     COMPUTE WS-EXPR-START = WS-EXPR-START + 2
     COMPUTE WS-EXPR-END = WS-FUNCTION-END - 1
     PERFORM TRY-RESOLVE-INDEX-REFERENCE
+    IF WS-INDEX-RESOLVE-OK NOT = "Y"
+        PERFORM BUILD-EXPRESSION
+        MOVE WS-EXPR TO WS-REF-BUILD-RESULT
+        MOVE "Y" TO WS-INDEX-RESOLVE-OK
+    END-IF
     PERFORM POP-REF-BUILD-STATE
     IF WS-INDEX-RESOLVE-OK = "Y"
         MOVE SPACES TO WS-LEFT-EXPR
@@ -11173,6 +11718,7 @@ RESET-CURRENT-UNIT-STATE.
     MOVE "N" TO WS-HAS-ENTRY-PARAGRAPH
     MOVE "N" TO WS-DATA-LAYOUT-READY
     MOVE "N" TO WS-HAS-DATA-INIT
+    MOVE "N" TO WS-UNIT-IS-RECURSIVE
     MOVE "N" TO WS-STMT-IN-PROGRESS
     MOVE "N" TO WS-STMT-HAS-PERIOD
     MOVE "I" TO WS-PHASE

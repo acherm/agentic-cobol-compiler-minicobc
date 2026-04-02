@@ -14,7 +14,7 @@ As of 2026-04-02, `MiniCOBC` is a working subset COBOL compiler with correctness
 - Direct comparison with GnuCOBOL on the generic `core` suite: `minicobc + gcc` is about `0.69x` `cobc` compile time and about `0.51x` to `0.52x` runtime on this machine.
 - Optimization mode: `OPT` now implements readonly `VALUE` propagation, local dead-store elimination, constant folding, loop-condition canonicalization, and width-aware integer selection. On the `core` suite, optimized `minicobc` is about `0.88x` baseline runtime.
 - Bootstrap: the current compiler source bootstraps through a dedicated `PROGRAM-ID. MINICOB.` self-host path, and the stage-1 compiler reproduces the same stage-2 C template.
-- Chess engine: the external COBOL chess engine at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919) now builds end-to-end through the generic front end. Dedicated phase-1 through phase-4 harnesses match GnuCOBOL for `FEN(startpos)`, `PERFT(startpos, depth=2)`, a shallow `SEARCH` milestone, and the top-level `COBOCHESS` driver. On the default full-engine perft profile, the generic `minicobc` build is about `0.02x` the runtime of the GnuCOBOL build on this machine, but that result is unusually favorable and should be treated as provisional until deeper validation and profiling are added.
+- Chess engine: the external COBOL chess engine at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919) now builds end-to-end through the generic front end. Dedicated phase-1 through phase-4 harnesses match GnuCOBOL for `FEN(startpos)`, `PERFT(startpos, depth=2)`, a shallow `SEARCH` milestone, and the top-level `COBOCHESS` driver. A later phase-3 search drift on the kiwipete-like debug FEN was traced to a real compiler bug in indexed numeric `MOVE` source lowering, not randomness; after that fix, the rebuilt generic engine matches GnuCOBOL there too at `go depth 2` with `nodes 2855`, `score -408`, and `bestmove d5e6`. On the default full-engine perft profile, the generic `minicobc` build is about `0.02x` the runtime of the GnuCOBOL build on this machine, but that result is unusually favorable and should be treated as provisional until deeper validation and profiling are added.
 - Flappy / SDL2: the external COBOL PyGame repo at [commit `b2095a1`](https://github.com/acherm/agentic-cobol-pygame/commit/b2095a1ce046cb654bff9e072c96e1ce4d2b11d9) builds `examples/flappy.cob` through a targeted compatibility path and links it with the repo's SDL2 helper C code. The current smoke test starts both the `minicobc` and GnuCOBOL builds successfully under `SDL_VIDEODRIVER=dummy`.
 - DOOM: the COBOL portion of `acherm/agentic-cobol-doom` at [commit `18ce52b`](https://github.com/acherm/agentic-cobol-doom/commit/18ce52b3f7dd4d6d229d4a743513c39960959b44) now builds through the generic `MiniCOBC` front end and plain `gcc`. The current `MINICOBC_OPT=1` DOOM build is about `0.92x` the baseline build time on this machine, with similar startup latency and a smaller binary.
 
@@ -151,6 +151,14 @@ For the chess phase-3 generic milestone specifically, run:
 
 That compiles `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, `TIMEUTIL`, `EVAL`, `SEARCH`, and `MOVE2UCI` through the generic front end, links them with a small C harness, and checks a shallow `SEARCH` result against a GnuCOBOL reference harness.
 
+For a lower-level direct equivalence check on the same search stack, run:
+
+```bash
+./scripts/test-chess-phase3-direct.sh
+```
+
+That bypasses the top-level `SEARCH` wrapper output and directly compares `QUIESCE`, recursive `ALPHABETA`, and the first capture replies on the phase-3 debug FEN against GnuCOBOL. It was the harness used to isolate and fix a real compiler bug where `MOVE WPC(F-IX - 1) TO FRIEND-L` in `EVAL` was miscompiled as `FRIEND-L = F-IX - 1` instead of loading the indexed array element.
+
 For the chess phase-4 generic milestone specifically, run:
 
 ```bash
@@ -233,6 +241,17 @@ That writes:
 
 - `build/perf/chess-perft-compare.json`
 - `build/perf/chess-perft-compare.md`
+
+For an independent shallow move-count cross-check adapted from the Brainfuck chess-engine `test_perft.py` style, run:
+
+```bash
+./scripts/compare-chess-depth1-suite.sh
+```
+
+That compares the `minicobc` and GnuCOBOL chess binaries against `python-chess` on a small depth-1 position suite and writes:
+
+- `build/perf/chess-depth1-suite.json`
+- `build/perf/chess-depth1-suite.md`
 
 `MiniCOBC` also has a targeted compatibility path for [`acherm/agentic-cobol-pygame`](https://github.com/acherm/agentic-cobol-pygame) at [commit `b2095a1`](https://github.com/acherm/agentic-cobol-pygame/commit/b2095a1ce046cb654bff9e072c96e1ce4d2b11d9).
 
