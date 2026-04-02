@@ -1,6 +1,6 @@
 # MiniCOBC Status Report
 
-Date: 2026-03-30
+Date: 2026-04-02
 
 ## Executive Summary
 
@@ -10,7 +10,7 @@ Date: 2026-03-30
 - supports a correctness benchmark corpus shared with GnuCOBOL
 - has a first real optimization mode (`OPT`)
 - can bootstrap its current compiler source through a dedicated self-host path
-- can build and validate an external COBOL chess engine through a targeted compatibility path, with `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, and `PERFT` now also compiling through the generic front end in a dedicated phase-2 milestone harness
+- can build and validate the external COBOL chess engine end-to-end through the generic front end, with dedicated phase-1 through phase-4 milestone harnesses
 - can build `game15.cob` and `gameN.cob` from the external puzzle repository through the generic front end
 - can build the COBOL portion of DOOM through the generic front end
 
@@ -22,7 +22,7 @@ The project is no longer just a proof of concept. It now has:
 - a compiler-focused optimization corpus
 - a bootstrap verification loop
 
-The main limitation remains scope: the generic compiler is still a subset compiler, while the chess top-level driver plus the higher-level `SEARCH` / `EVAL` / `TIMEUTIL` / `MOVE2UCI` units, the remaining `game015*` variants, and the self-hosted compiler source are supported through repository-specific compatibility paths rather than full general COBOL front-end support. `game15.cob`, `game15tree.cob`, `gameN.cob`, DOOM, and now the chess `BOARD` / `FEN` / `ATTACK` / `MOVEGEN` / `MAKEMOVE` / `UNMAKEMOVE` / `PERFT` slice are larger generic-front-end success cases, not just compatibility templates.
+The main limitation remains scope: the generic compiler is still a subset compiler, while the remaining `game015*` variants, Flappy, and the self-hosted compiler source still rely on repository-specific compatibility paths rather than full general COBOL front-end support. `game15.cob`, `game15tree.cob`, `gameN.cob`, DOOM, and now the full chess engine build are larger generic-front-end success cases, not just compatibility templates.
 
 ## Compiler Scope
 
@@ -180,13 +180,13 @@ Current status:
 - repo: `external/agentic-chessengine-cobol-codex`
 - commit: `faf0f163e9b2b4b6475262fc8f00fcaeeedf4919`
 
-End-to-end engine support is still implemented as a targeted multi-file compatibility path:
+End-to-end chess-engine support now goes through the real generic front end:
 
-- the compiler recognizes the engine program IDs
-- it emits matching generated C translation units and required sidecar headers
-- it does not yet compile the whole chess engine through the generic subset front end
+- [scripts/build-chess-engine.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/build-chess-engine.sh) compiles the top-level `COBOCHESS` driver and all required subprogram units through `minicobc`
+- [scripts/test-chess-engine.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-engine.sh) matches the generated engine against the upstream GnuCOBOL build on CLI `perft` cases and a UCI smoke case
+- the dedicated phase harnesses remain useful because they isolate the architecture slices that made that generic build possible
 
-There is now a real generic phase-2 milestone for the chess repo:
+There is now a real generic phase-1 and phase-2 milestone ladder for the chess repo:
 
 - `BOARD` compiles through the generic `MiniCOBC` subprogram path
 - `FEN` compiles through the generic `MiniCOBC` subprogram path
@@ -195,6 +195,18 @@ There is now a real generic phase-2 milestone for the chess repo:
 - `LOCAL-STORAGE` now works correctly for the generic recursive `PERFT` unit through per-call C shadow locals
 - [scripts/test-chess-phase1.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-phase1.sh) links the generated `BOARD` and `FEN` C units with a small C harness and checks the resulting `FEN(startpos)` state against a GnuCOBOL reference harness
 - [scripts/test-chess-phase2.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-phase2.sh) links the generated `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, and `PERFT` C units with a small C harness and checks `PERFT(startpos, depth=2)` against GnuCOBOL
+
+There is now a real generic phase-3 milestone for the chess repo:
+
+- `TIMEUTIL`, `EVAL`, `SEARCH`, and `MOVE2UCI` also compile through the generic front end
+- the helper-unit search stack now runs through real generic internal `CALL ... USING ...` chains rather than compatibility templates
+- [scripts/test-chess-phase3.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-phase3.sh) links the generated `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, `TIMEUTIL`, `EVAL`, `SEARCH`, and `MOVE2UCI` C units with a small C harness and checks a shallow `SEARCH` result against GnuCOBOL
+
+There is now a real generic phase-4 milestone for the chess repo:
+
+- the top-level `COBOCHESS` driver compiles through the generic front end
+- `ACCEPT ARGUMENT-NUMBER`, `ACCEPT ARGUMENT-VALUE`, line-based `ACCEPT` into `PIC X`, `RETURN-CODE`, `STRING ... INTO`, `PERFORM FOREVER`, and the line-oriented UCI loop now work correctly in the top-level engine flow
+- [scripts/test-chess-phase4.sh](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/scripts/test-chess-phase4.sh) builds the full generic engine and checks `--perft-startpos 2` against the GnuCOBOL engine build
 
 That phase-2 work required real generic compiler support for:
 
@@ -220,7 +232,7 @@ Validation is covered by [scripts/test-chess-engine.sh](/Users/mathieuacher/SAND
 - an en-passant legality perft case
 - a simple UCI depth-1 interaction
 
-The `minicobc`-built engine matches the GnuCOBOL-built reference engine on those checked cases.
+The `minicobc`-built engine now matches the GnuCOBOL-built reference engine on those checked cases through the generic path rather than a compatibility template path.
 
 ## Chess Engine Performance Benchmark
 
@@ -234,26 +246,32 @@ Latest results from [build/perf/chess-perft-compare.md](/Users/mathieuacher/SAND
 
 Build pipelines:
 
-- `minicobc` build pipeline: `1108.77 ms`
-- GnuCOBOL build pipeline: `1483.95 ms`
+- `minicobc` build pipeline: `3625.13 ms`
+- GnuCOBOL build pipeline: `1003.25 ms`
 
 Runtime comparison:
 
-- aggregate median runtime: `2305.54 ms` vs `2027.62 ms`
-- aggregate ratio: `1.14x`
-- aggregate nodes/sec: `128693` vs `146333`
+- aggregate median runtime: `34.43 ms` vs `1764.96 ms`
+- aggregate ratio: `0.02x`
+- aggregate nodes/sec: `8617938` vs `168110`
 
 Per-case runtime ratios:
 
-- `startpos/d4`: `1.14x`
-- `kiwipete/d3`: `1.14x`
-- `ep_illegal_exposes_king/d3`: `1.03x`
-- `promotions_and_capture_promotions/d3`: `1.05x`
+- `startpos/d4`: `0.02x`
+- `kiwipete/d3`: `0.02x`
+- `ep_illegal_exposes_king/d3`: `0.19x`
+- `promotions_and_capture_promotions/d3`: `0.13x`
 
 Interpretation:
 
-- the `minicobc`-built chess engine is currently about `14%` slower on the default perft profile
-- this is a valid engine benchmark, but it measures the compatibility path output, not improvements from the generic `MiniCOBC` front end
+- the generic `minicobc`-built chess engine is currently much faster than the GnuCOBOL build on the default perft profile measured here
+- the performance benchmark now measures the real generic top-level engine build rather than a compatibility-emitted artifact
+
+Benchmark caveat:
+
+- the result is correctness-checked, but the size of the speedup is unusually large and should be treated as provisional rather than as a settled compiler-performance conclusion
+- the current validation is strong for the covered cases, but deeper `perft` depths, broader FEN coverage, and profiling are still warranted
+- `MINICOBC_OPT=1` is currently not safe for chess: it miscompiles the engine and returns `nodes=0` on `perft`, so the reported chess numbers use plain `minicobc` plus `gcc -O2`, not `minicobc OPT`
 
 ## Generic DOOM Support
 
@@ -297,7 +315,7 @@ Current strengths:
 
 Current architectural caveats:
 
-- chess-engine support is compatibility-based, not generic COBOL support
+- full chess-engine support is now generic, but Flappy and some remaining external variants are still compatibility-based
 - bootstrap is compatibility-based, not full self-hosting of the generic source language
 - the generic front end is still a subset compiler, even though it is now strong enough to compile the COBOL DOOM program
 - the optimizer is still source-level and local, not IR-based
@@ -315,7 +333,7 @@ Highest-value next language-coverage tasks:
 
 - broader expression handling
 - more realistic control-flow structure
-- eventually replacing the chess/self-host compatibility paths with genuine front-end support
+- eventually replacing the self-host and Flappy compatibility paths with genuine front-end support
 
 Highest-value next benchmarking tasks:
 

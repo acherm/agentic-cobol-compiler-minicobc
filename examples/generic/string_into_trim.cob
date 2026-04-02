@@ -1,0 +1,18 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. STRINGTRIM.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01 A PIC X(8) VALUE "ONE     ".
+       01 B PIC X(8) VALUE "TWO     ".
+       01 OUT-TEXT PIC X(20).
+
+       PROCEDURE DIVISION.
+           STRING
+               FUNCTION TRIM(A) DELIMITED BY SIZE
+               " " DELIMITED BY SIZE
+               FUNCTION TRIM(B) DELIMITED BY SIZE
+               INTO OUT-TEXT
+           END-STRING
+           DISPLAY OUT-TEXT
+           STOP RUN.

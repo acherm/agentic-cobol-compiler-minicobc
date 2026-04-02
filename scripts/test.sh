@@ -9,6 +9,8 @@ cd "$ROOT_DIR"
 ./scripts/test-generic-features.sh > /dev/null
 ./scripts/test-chess-phase1.sh > /dev/null
 ./scripts/test-chess-phase2.sh > /dev/null
+./scripts/test-chess-phase3.sh > /dev/null
+./scripts/test-chess-phase4.sh > /dev/null
 ./scripts/test-game15-generic.sh > /dev/null
 ./scripts/test-game15tree-generic.sh > /dev/null
 ./scripts/test-gameN-generic.sh > /dev/null

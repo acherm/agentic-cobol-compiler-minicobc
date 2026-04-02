@@ -1,0 +1,14 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PERFFOREVER.
+
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01 I PIC 9(5) COMP-5 VALUE 0.
+
+       PROCEDURE DIVISION.
+           PERFORM FOREVER
+               ADD 1 TO I
+               IF I >= 3 EXIT PERFORM END-IF
+           END-PERFORM
+           DISPLAY I
+           STOP RUN.

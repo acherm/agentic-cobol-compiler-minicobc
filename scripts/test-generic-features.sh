@@ -33,6 +33,16 @@ gcc -std=c99 -O2 build/generated/call_alpha_ref.c examples/generic/call_helpers.
 ./build/bin/call_alpha_ref > build/out/call_alpha_ref.txt
 diff -u expected/generic/call_alpha_ref.txt build/out/call_alpha_ref.txt
 
+./build/bin/minicobc examples/generic/accept_arguments.cob build/generated/accept_arguments.c
+gcc -std=c99 -O2 build/generated/accept_arguments.c -o build/bin/accept_arguments
+./build/bin/accept_arguments hello world > build/out/accept_arguments.txt
+diff -u expected/generic/accept_arguments.txt build/out/accept_arguments.txt
+
+./build/bin/minicobc examples/generic/accept_line_alpha.cob build/generated/accept_line_alpha.c
+gcc -std=c99 -O2 build/generated/accept_line_alpha.c -o build/bin/accept_line_alpha
+printf 'go depth 1\n' | ./build/bin/accept_line_alpha > build/out/accept_line_alpha.txt
+diff -u expected/generic/accept_line_alpha.txt build/out/accept_line_alpha.txt
+
 ./build/bin/minicobc examples/generic/multiline_call.cob build/generated/multiline_call.c
 gcc -std=c99 -O2 build/generated/multiline_call.c examples/generic/call_helpers.c -o build/bin/multiline_call
 ./build/bin/multiline_call > build/out/multiline_call.txt
@@ -168,6 +178,11 @@ gcc -std=c99 -O2 build/generated/perform_varying.c -o build/bin/perform_varying
 ./build/bin/perform_varying > build/out/perform_varying.txt
 diff -u expected/generic/perform_varying.txt build/out/perform_varying.txt
 
+./build/bin/minicobc examples/generic/perform_forever.cob build/generated/perform_forever.c
+gcc -std=c99 -O2 build/generated/perform_forever.c -o build/bin/perform_forever
+./build/bin/perform_forever > build/out/perform_forever.txt
+diff -u expected/generic/perform_forever.txt build/out/perform_forever.txt
+
 ./build/bin/minicobc examples/generic/compute_indexed_target.cob build/generated/compute_indexed_target.c
 gcc -std=c99 -O2 build/generated/compute_indexed_target.c -o build/bin/compute_indexed_target
 ./build/bin/compute_indexed_target > build/out/compute_indexed_target.txt
@@ -188,10 +203,20 @@ gcc -std=c99 -O2 build/generated/multiline_move_alpha.c -o build/bin/multiline_m
 ./build/bin/multiline_move_alpha > build/out/multiline_move_alpha.txt
 diff -u expected/generic/multiline_move_alpha.txt build/out/multiline_move_alpha.txt
 
+./build/bin/minicobc examples/generic/move_function_trim.cob build/generated/move_function_trim.c
+gcc -std=c99 -O2 build/generated/move_function_trim.c -o build/bin/move_function_trim
+./build/bin/move_function_trim > build/out/move_function_trim.txt
+diff -u expected/generic/move_function_trim.txt build/out/move_function_trim.txt
+
 ./build/bin/minicobc examples/generic/display_trim_trailing.cob build/generated/display_trim_trailing.c
 gcc -std=c99 -O2 build/generated/display_trim_trailing.c -o build/bin/display_trim_trailing
 ./build/bin/display_trim_trailing > build/out/display_trim_trailing.txt
 diff -u expected/generic/display_trim_trailing.txt build/out/display_trim_trailing.txt
+
+./build/bin/minicobc examples/generic/string_into_trim.cob build/generated/string_into_trim.c
+gcc -std=c99 -O2 build/generated/string_into_trim.c -o build/bin/string_into_trim
+./build/bin/string_into_trim > build/out/string_into_trim.txt
+diff -u expected/generic/string_into_trim.txt build/out/string_into_trim.txt
 
 ./build/bin/minicobc examples/generic/move_numeric_to_picx.cob build/generated/move_numeric_to_picx.c
 gcc -std=c99 -O2 build/generated/move_numeric_to_picx.c -o build/bin/move_numeric_to_picx
@@ -217,5 +242,10 @@ diff -u expected/generic/alpha_compare.txt build/out/alpha_compare.txt
 gcc -std=c99 -O2 build/generated/function_sqrt.c -o build/bin/function_sqrt
 ./build/bin/function_sqrt > build/out/function_sqrt.txt
 diff -u expected/generic/function_sqrt.txt build/out/function_sqrt.txt
+
+./build/bin/minicobc examples/generic/numval_indexed.cob build/generated/numval_indexed.c
+gcc -std=c99 -O2 build/generated/numval_indexed.c -o build/bin/numval_indexed
+./build/bin/numval_indexed > build/out/numval_indexed.txt
+diff -u expected/generic/numval_indexed.txt build/out/numval_indexed.txt
 
 echo "generic paragraph, CALL, multiline, EVALUATE, storage-overlay, reference-modification, signed COMP-5, and paragraph UNTIL features matched expected output"

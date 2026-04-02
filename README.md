@@ -8,17 +8,19 @@ Created by Mathieu Acher and Codex (`GPT-5.4`, Extra High).
 
 ## Current Status
 
-As of 2026-03-30, `MiniCOBC` is a working subset COBOL compiler with correctness tests, performance harnesses, an optimization mode, a bootstrap check, and multiple larger external programs now handled through the generic front end.
+As of 2026-04-02, `MiniCOBC` is a working subset COBOL compiler with correctness tests, performance harnesses, an optimization mode, a bootstrap check, and multiple larger external programs now handled through the generic front end.
 
-- Generic compiler path: the shared `core` and `opt` corpus currently passes `11/11` benchmark cases, the full benchmark passes `19/19` including the mixed Game-of-15 suite, and additional regression tests now cover paragraph `PERFORM`, paragraph `PERFORM UNTIL`, `PERFORM VARYING`, restricted external `CALL`, multiline procedure statements, `EVALUATE`, `PIC X`, `PIC S9(...) COMP-5`, elementary and one-dimensional group `OCCURS`, indexed references, grouped child items, group `DISPLAY`, group `ACCEPT`, group-to-group `MOVE`, elementary `REDEFINES` views, redefining groups with child overlays that stay synchronized across writes, `FUNCTION SQRT`, `PIC X` reference modification, internal COBOL subprogram calls with `LINKAGE SECTION` and `PROCEDURE DIVISION USING`, and the pinned external `game15.cob`, `game15tree.cob`, `gameN.cob`, plus a chess phase-2 harness that now compiles `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, and `PERFT` through the generic front end and matches GnuCOBOL on `PERFT(startpos, depth=2)`.
+- Generic compiler path: the shared `core` and `opt` corpus currently passes `11/11` benchmark cases, the full benchmark passes `19/19` including the mixed Game-of-15 suite, and additional regression tests now cover paragraph `PERFORM`, paragraph `PERFORM UNTIL`, `PERFORM VARYING`, restricted external `CALL`, multiline procedure statements, `EVALUATE`, `PIC X`, `PIC S9(...) COMP-5`, elementary and one-dimensional group `OCCURS`, indexed references, grouped child items, group `DISPLAY`, group `ACCEPT`, group-to-group `MOVE`, elementary `REDEFINES` views, redefining groups with child overlays that stay synchronized across writes, `FUNCTION SQRT`, `PIC X` reference modification, internal COBOL subprogram calls with `LINKAGE SECTION` and `PROCEDURE DIVISION USING`, line-based `ACCEPT` into `PIC X`, and the pinned external `game15.cob`, `game15tree.cob`, `gameN.cob`, plus the full chess engine stack through the generic front end.
 - Direct comparison with GnuCOBOL on the generic `core` suite: `minicobc + gcc` is about `0.69x` `cobc` compile time and about `0.51x` to `0.52x` runtime on this machine.
 - Optimization mode: `OPT` now implements readonly `VALUE` propagation, local dead-store elimination, constant folding, loop-condition canonicalization, and width-aware integer selection. On the `core` suite, optimized `minicobc` is about `0.88x` baseline runtime.
 - Bootstrap: the current compiler source bootstraps through a dedicated `PROGRAM-ID. MINICOB.` self-host path, and the stage-1 compiler reproduces the same stage-2 C template.
-- Chess engine: the external COBOL chess engine at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919) still builds end-to-end through a targeted compatibility path, but the generic migration now covers `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, and `PERFT`, with a dedicated phase-2 harness matching GnuCOBOL on `PERFT(startpos, depth=2)`. On the default full-engine perft profile, the compatibility-built `minicobc` engine is about `1.14x` the runtime of the GnuCOBOL-built engine.
+- Chess engine: the external COBOL chess engine at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919) now builds end-to-end through the generic front end. Dedicated phase-1 through phase-4 harnesses match GnuCOBOL for `FEN(startpos)`, `PERFT(startpos, depth=2)`, a shallow `SEARCH` milestone, and the top-level `COBOCHESS` driver. On the default full-engine perft profile, the generic `minicobc` build is about `0.02x` the runtime of the GnuCOBOL build on this machine, but that result is unusually favorable and should be treated as provisional until deeper validation and profiling are added.
 - Flappy / SDL2: the external COBOL PyGame repo at [commit `b2095a1`](https://github.com/acherm/agentic-cobol-pygame/commit/b2095a1ce046cb654bff9e072c96e1ce4d2b11d9) builds `examples/flappy.cob` through a targeted compatibility path and links it with the repo's SDL2 helper C code. The current smoke test starts both the `minicobc` and GnuCOBOL builds successfully under `SDL_VIDEODRIVER=dummy`.
 - DOOM: the COBOL portion of `acherm/agentic-cobol-doom` at [commit `18ce52b`](https://github.com/acherm/agentic-cobol-doom/commit/18ce52b3f7dd4d6d229d4a743513c39960959b44) now builds through the generic `MiniCOBC` front end and plain `gcc`. The current `MINICOBC_OPT=1` DOOM build is about `0.92x` the baseline build time on this machine, with similar startup latency and a smaller binary.
 
-Important caveat: the chess top-level driver and higher-level engine units still rely on compatibility mode, as do Flappy, `GAME015`, `GAME015TREE`, and the current bootstrap path. `game15.cob`, `game15tree.cob`, `gameN.cob`, DOOM, and now the chess `BOARD`/`FEN`/`ATTACK`/`MOVEGEN`/`MAKEMOVE`/`UNMAKEMOVE`/`PERFT` slice are generic-front-end success cases, but `MiniCOBC` is still intentionally far from full COBOL 85 coverage.
+Important caveat: Flappy, `GAME015`, `GAME015TREE`, and the current bootstrap path still rely on compatibility mode. `game15.cob`, `game15tree.cob`, `gameN.cob`, DOOM, and now the full chess engine build exercise the real generic compiler pipeline, but `MiniCOBC` is still intentionally far from full COBOL 85 coverage.
+
+Important benchmark caveat: the current chess `perft` comparison is correctness-checked, but the measured speedup over GnuCOBOL is suspiciously large. The benchmark should be treated as a strong local signal, not a settled general claim. Also, `MINICOBC_OPT=1` is currently not safe for chess: it miscompiles the engine and returns incorrect `perft` counts, so the reported chess numbers use plain `minicobc` plus `gcc -O2`.
 
 For a longer status snapshot with benchmark details, see `reports/current-status.md`.
 
@@ -29,11 +31,11 @@ For a longer status snapshot with benchmark details, see `reports/current-status
 - Local test corpus: the shared `core`, `opt`, and generic regression suites cover the sample programs in `examples/` plus targeted feature tests for `PERFORM`, `CALL`, `EVALUATE`, `PIC X`, `COMP-5`, `OCCURS`, indexed references, grouped items, `REDEFINES`, overlays, and other generic-front-end behavior.
 - Bootstrap/self-host: the current compiler source in [src/minicobc.cob](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/src/minicobc.cob) is exercised through the self-host bootstrap path, where a stage-1 `minicobc` recompiles the compiler and reproduces the same stage-2 generated C.
 - Game of 15 external validation: [`acherm/agentic-cobol-game15tictactoe`](https://github.com/acherm/agentic-cobol-game15tictactoe) at [commit `4ae3129`](https://github.com/acherm/agentic-cobol-game15tictactoe/commit/4ae3129ad1f5b6a81cb28c075864781891c0e7a1) now splits in two parts: `game15.cob`, `game15tree.cob`, and `gameN.cob` go through the generic `MiniCOBC` front end, while `GAME015` and `GAME015TREE` still use targeted compatibility templates.
-- Chess engine validation: [`acherm/agentic-chessengine-cobol-codex`](https://github.com/acherm/agentic-chessengine-cobol-codex) at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919) still has an end-to-end targeted compatibility path, while the generic front end now compiles `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, and `PERFT`. The dedicated phase-2 harness cross-checks `PERFT(startpos, depth=2)` against GnuCOBOL.
+- Chess engine validation: [`acherm/agentic-chessengine-cobol-codex`](https://github.com/acherm/agentic-chessengine-cobol-codex) at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919) now builds end-to-end through the generic front end. The dedicated phase-1 through phase-4 harnesses cross-check `FEN(startpos)`, `PERFT(startpos, depth=2)`, a shallow `SEARCH` milestone, and the top-level `COBOCHESS` driver against GnuCOBOL.
 - COBOL PyGame / Flappy compatibility target: [`acherm/agentic-cobol-pygame`](https://github.com/acherm/agentic-cobol-pygame) at [commit `b2095a1`](https://github.com/acherm/agentic-cobol-pygame/commit/b2095a1ce046cb654bff9e072c96e1ce4d2b11d9) is supported through a targeted compatibility path for `examples/flappy.cob`, with SDL2 linked from the repository's `src/cpg.c`.
 - DOOM generic-front-end target: [`acherm/agentic-cobol-doom`](https://github.com/acherm/agentic-cobol-doom) at [commit `18ce52b`](https://github.com/acherm/agentic-cobol-doom/commit/18ce52b3f7dd4d6d229d4a743513c39960959b44) now builds through the generic `MiniCOBC` front end rather than a template-only compatibility path.
 
-That split matters: `game15.cob`, `game15tree.cob`, `gameN.cob`, the local corpus, the COBOL DOOM build, and now the chess `BOARD`/`FEN`/`ATTACK`/`MOVEGEN`/`MAKEMOVE`/`UNMAKEMOVE`/`PERFT` phase-2 harness exercise the real generic compiler pipeline, while the chess top-level driver and search/eval/time units, Flappy, the bootstrap path, and the remaining `game015*` variants still rely on compatibility-mode integrations.
+That split matters: `game15.cob`, `game15tree.cob`, `gameN.cob`, the local corpus, the COBOL DOOM build, and now the full chess engine build exercise the real generic compiler pipeline, while Flappy, the bootstrap path, and the remaining `game015*` variants still rely on compatibility-mode integrations.
 
 ## Supported subset
 
@@ -141,6 +143,22 @@ For the chess phase-2 generic milestone specifically, run:
 
 That compiles `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, and `PERFT` through the generic front end, links them with a small C harness, and checks `PERFT(startpos, depth=2)` against a GnuCOBOL reference harness.
 
+For the chess phase-3 generic milestone specifically, run:
+
+```bash
+./scripts/test-chess-phase3.sh
+```
+
+That compiles `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `UNMAKEMOVE`, `TIMEUTIL`, `EVAL`, `SEARCH`, and `MOVE2UCI` through the generic front end, links them with a small C harness, and checks a shallow `SEARCH` result against a GnuCOBOL reference harness.
+
+For the chess phase-4 generic milestone specifically, run:
+
+```bash
+./scripts/test-chess-phase4.sh
+```
+
+That builds the full top-level `COBOCHESS` driver through the generic front end and checks `--perft-startpos 2` against the GnuCOBOL engine build.
+
 For the new generic front-end slices specifically, run:
 
 ```bash
@@ -191,9 +209,7 @@ To verify the pinned repository programs against GnuCOBOL:
 ./scripts/test-agentic-game15.sh
 ```
 
-`MiniCOBC` also has a targeted multi-file compatibility path for [`acherm/agentic-chessengine-cobol-codex`](https://github.com/acherm/agentic-chessengine-cobol-codex) at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919).
-
-That path recognizes the engine program IDs (`COBOCHESS`, `BOARD`, `FEN`, `ATTACK`, `MOVEGEN`, `MAKEMOVE`, `PERFT`, `TIMEUTIL`, `EVAL`, `SEARCH`, and `MOVE2UCI`) and emits the matching GnuCOBOL-generated C translation units plus required sidecar headers. It is still a repository-specific compatibility layer, not general support for the full GNUCobol feature set used by the engine.
+The chess engine in [`acherm/agentic-chessengine-cobol-codex`](https://github.com/acherm/agentic-chessengine-cobol-codex) at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919) now goes through the real generic front end end-to-end, including the top-level `COBOCHESS` driver.
 
 Build the chess engine with `minicobc`:
 
