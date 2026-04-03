@@ -277,31 +277,127 @@ The chess-specific performance benchmark uses deterministic `perft` workloads, w
 Latest results from [build/perf/chess-perft-compare.md](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/build/perf/chess-perft-compare.md):
 
 - profile: `default`
-- timed iterations per case: `3`
+- warmups per case: `2`
+- timed iterations per case: `7`
 - total benchmark nodes: `296707`
 
 Build pipelines:
 
-- `minicobc` build pipeline: `3625.13 ms`
-- GnuCOBOL build pipeline: `1003.25 ms`
+- `minicobc` build pipeline: `3771.07 ms`
+- GnuCOBOL build pipeline: `1009.22 ms`
 
 Runtime comparison:
 
-- aggregate median runtime: `34.43 ms` vs `1764.96 ms`
-- aggregate ratio: `0.02x`
-- aggregate nodes/sec: `8617938` vs `168110`
+- aggregate median runtime: `57.65 ms` vs `1693.20 ms`
+- aggregate ratio: `0.03x`
+- aggregate nodes/sec: `5146268` vs `175234`
 
 Per-case runtime ratios:
 
-- `startpos/d4`: `0.02x`
-- `kiwipete/d3`: `0.02x`
-- `ep_illegal_exposes_king/d3`: `0.19x`
-- `promotions_and_capture_promotions/d3`: `0.13x`
+- `startpos/d4`: `0.03x`
+- `kiwipete/d3`: `0.03x`
+- `ep_illegal_exposes_king/d3`: `0.22x`
+- `promotions_and_capture_promotions/d3`: `0.17x`
 
 Interpretation:
 
 - the generic `minicobc`-built chess engine is currently much faster than the GnuCOBOL build on the default perft profile measured here
 - the performance benchmark now measures the real generic top-level engine build rather than a compatibility-emitted artifact
+
+Deeper `perft` stress run from the same report path, using profile `full`:
+
+- timed iterations per case: `1`
+- aggregate runtime ratio: `0.03x`
+- `startpos/d5`: `902.40 ms` vs `27321.78 ms`
+- `kiwipete/d4`: `649.73 ms` vs `22625.12 ms`
+
+So the large speedup does not collapse once the benchmark is pushed into multi-million-node cases.
+
+There are now two additional comparison layers around that perft result.
+
+Depth-1 move-count suite from [build/perf/chess-depth1-suite.md](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/build/perf/chess-depth1-suite.md):
+
+- `11/11` positions matched `python-chess`, `minicobc`, and GnuCOBOL
+- runtime ratios ranged from `0.42x` to `0.48x`
+- this is a much less extreme result and is useful as a conservative correctness/performance sanity check
+
+Fixed-depth search suite from [build/perf/chess-search-suite.md](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/build/perf/chess-search-suite.md):
+
+- normalized `info depth ...` lines and `bestmove` matched GnuCOBOL exactly on `4/4` cases
+- aggregate runtime ratio: `0.05x`
+- per-case ratios:
+  - `Startpos depth 2`: `0.14x`
+  - `Open game depth 2`: `0.09x`
+  - `Queen's gambit depth 2`: `0.12x`
+  - `Phase-3 debug FEN depth 2`: `0.02x`
+
+That search suite is especially useful because it checks actual engine-search behavior rather than only move-generation counts.
+
+Broader fixed-depth search run from the same report path, using profile `extended`:
+
+- normalized `info depth ...` lines and `bestmove` matched GnuCOBOL exactly on `7/7` cases
+- aggregate runtime ratio: `0.03x`
+- the suite now includes:
+  - start position at depth 3
+  - open-game and queen's-gambit structures at depth 3
+  - the phase-3 debug FEN at depth 3
+  - kiwipete/perft-style, en-passant-legality, and promotion-race FENs at depth 2
+
+This materially strengthens the current equivalence claim: the generic engine is no longer only matching on a narrow shallow-search sample.
+
+There is now a third layer around those search-only comparisons: a fixed-depth paired-game tournament harness.
+
+Latest default tournament run from [build/perf/chess-tournament-default-d2-p12.md](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/build/perf/chess-tournament-default-d2-p12.md):
+
+- profile: `default`
+- fixed depth per move: `2`
+- max plies per game: `12`
+- paired games with color swap across `5` starting positions
+- no illegal moves from either engine
+- equal score: `5.0` vs `5.0`
+- average wall time per move:
+  - `minicobc`: `4.85 ms`
+  - GnuCOBOL: `75.33 ms`
+
+Additional deeper tournament probe from [build/perf/chess-tournament-quick-d3-p10.md](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/build/perf/chess-tournament-quick-d3-p10.md):
+
+- profile: `quick`
+- fixed depth per move: `3`
+- max plies per game: `10`
+- no illegal moves from either engine
+- equal score: `3.0` vs `3.0`
+- average wall time per move:
+  - `minicobc`: `7.88 ms`
+  - GnuCOBOL: `182.11 ms`
+
+The tournament harness is intentionally stateless: it re-invokes the engine process for each move so it can compare legality and move selection cleanly without depending on long-lived UCI session behavior. That makes it a practical search-quality/runtime probe, not a pure in-engine throughput measurement.
+
+There is now also a Stockfish-facing tournament layer for the `minicobc`-built chess binary.
+
+Latest multi-skill Stockfish run from [build/perf/chess-stockfish-tournament-extended-mt50-p16-s0-5-10-15-20.md](/Users/mathieuacher/SANDBOX/cobol-compiler-codex/build/perf/chess-stockfish-tournament-extended-mt50-p16-s0-5-10-15-20.md):
+
+- profile: `extended`
+- search mode: `movetime`
+- movetime per move: `50 ms`
+- max plies per game: `16`
+- stockfish skills tested: `0`, `5`, `10`, `15`, `20`
+- stockfish session: persistent UCI engine via `python-chess`
+- minicobc session: stateless CLI invocation per move
+
+Skill summary:
+
+- skill `0`: MiniCOBC `7.5`, Stockfish `6.5`
+- skill `5`: `7.0` to `7.0`
+- skill `10`: MiniCOBC `7.5`, Stockfish `6.5`
+- skill `15`: `7.0` to `7.0`
+- skill `20`: MiniCOBC `6.5`, Stockfish `7.5`
+
+Interpretation:
+
+- the stronger Stockfish setup no longer produces the obviously distorted results seen with stateless Stockfish cold starts
+- the current corpus is still small and draw-heavy, so this is better read as a tournament-style probe than as a serious rating measurement
+- on this setup, Stockfish skill `20` does edge out the `minicobc`-built engine, while weaker skill settings are roughly even or slightly behind on the chosen start set
+- this gives a more believable practical benchmark than the earlier all-draw shallow runs, but it is still not a substitute for a larger Elo-style gauntlet
 
 Benchmark caveat:
 

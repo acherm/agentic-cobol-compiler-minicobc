@@ -14,13 +14,13 @@ As of 2026-04-02, `MiniCOBC` is a working subset COBOL compiler with correctness
 - Direct comparison with GnuCOBOL on the generic `core` suite: `minicobc + gcc` is about `0.69x` `cobc` compile time and about `0.51x` to `0.52x` runtime on this machine.
 - Optimization mode: `OPT` now implements readonly `VALUE` propagation, local dead-store elimination, constant folding, loop-condition canonicalization, and width-aware integer selection. On the `core` suite, optimized `minicobc` is about `0.88x` baseline runtime.
 - Bootstrap: the current compiler source bootstraps through a dedicated `PROGRAM-ID. MINICOB.` self-host path, and the stage-1 compiler reproduces the same stage-2 C template.
-- Chess engine: the external COBOL chess engine at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919) now builds end-to-end through the generic front end. Dedicated phase-1 through phase-4 harnesses match GnuCOBOL for `FEN(startpos)`, `PERFT(startpos, depth=2)`, a shallow `SEARCH` milestone, and the top-level `COBOCHESS` driver. A later phase-3 search drift on the kiwipete-like debug FEN was traced to a real compiler bug in indexed numeric `MOVE` source lowering, not randomness; after that fix, the rebuilt generic engine matches GnuCOBOL there too at `go depth 2` with `nodes 2855`, `score -408`, and `bestmove d5e6`. On the default full-engine perft profile, the generic `minicobc` build is about `0.02x` the runtime of the GnuCOBOL build on this machine, but that result is unusually favorable and should be treated as provisional until deeper validation and profiling are added.
+- Chess engine: the external COBOL chess engine at [commit `faf0f16`](https://github.com/acherm/agentic-chessengine-cobol-codex/commit/faf0f163e9b2b4b6475262fc8f00fcaeeedf4919) now builds end-to-end through the generic front end. Dedicated phase-1 through phase-4 harnesses match GnuCOBOL for `FEN(startpos)`, `PERFT(startpos, depth=2)`, a shallow `SEARCH` milestone, and the top-level `COBOCHESS` driver. A later phase-3 search drift on the kiwipete-like debug FEN was traced to a real compiler bug in indexed numeric `MOVE` source lowering, not randomness; after that fix, the rebuilt generic engine matches GnuCOBOL there too at `go depth 2` with `nodes 2855`, `score -408`, and `bestmove d5e6`. On the stricter default perft profile (`7` timed iterations, `2` warmups), the generic `minicobc` build is about `0.03x` the runtime of the GnuCOBOL build on this machine, and the deeper `full` perft profile also comes out around `0.03x` aggregate. A separate fixed-depth search suite now has both `default` and broader `extended` profiles; the current `default` run matches GnuCOBOL exactly and comes out around `0.05x` aggregate, while the `extended` run still matches exactly across `7` cases and comes out around `0.03x`. The independent depth-1 suite against `python-chess` shows a much more moderate `0.42x` to `0.48x`. A new fixed-depth tournament harness also runs paired games from diversified starts with color swaps; the latest `default` depth-2 run finished with no illegal moves and equal `5.0`-`5.0` score, while `minicobc` averaged `4.85 ms` per move versus `75.33 ms` for GnuCOBOL. The performance result is still unusually favorable overall and should be treated as provisional until deeper validation and profiling are added.
 - Flappy / SDL2: the external COBOL PyGame repo at [commit `b2095a1`](https://github.com/acherm/agentic-cobol-pygame/commit/b2095a1ce046cb654bff9e072c96e1ce4d2b11d9) builds `examples/flappy.cob` through a targeted compatibility path and links it with the repo's SDL2 helper C code. The current smoke test starts both the `minicobc` and GnuCOBOL builds successfully under `SDL_VIDEODRIVER=dummy`.
 - DOOM: the COBOL portion of `acherm/agentic-cobol-doom` at [commit `18ce52b`](https://github.com/acherm/agentic-cobol-doom/commit/18ce52b3f7dd4d6d229d4a743513c39960959b44) now builds through the generic `MiniCOBC` front end and plain `gcc`. The current `MINICOBC_OPT=1` DOOM build is about `0.92x` the baseline build time on this machine, with similar startup latency and a smaller binary.
 
 Important caveat: Flappy, `GAME015`, `GAME015TREE`, and the current bootstrap path still rely on compatibility mode. `game15.cob`, `game15tree.cob`, `gameN.cob`, DOOM, and now the full chess engine build exercise the real generic compiler pipeline, but `MiniCOBC` is still intentionally far from full COBOL 85 coverage.
 
-Important benchmark caveat: the current chess `perft` comparison is correctness-checked, but the measured speedup over GnuCOBOL is suspiciously large. The benchmark should be treated as a strong local signal, not a settled general claim. Also, `MINICOBC_OPT=1` is currently not safe for chess: it miscompiles the engine and returns incorrect `perft` counts, so the reported chess numbers use plain `minicobc` plus `gcc -O2`.
+Important benchmark caveat: the current chess `perft`, fixed-depth search, and fixed-depth tournament comparisons are correctness-checked, but the measured speedup over GnuCOBOL is still suspiciously large. The benchmark should be treated as a strong local signal, not a settled general claim. The depth-1 suite is a useful sanity check because it is broader and much less extreme, while the `extended` fixed-depth search profile and the tournament harness add more diverse positions and longer live-play traces without losing legality. The tournament harness is intentionally stateless and re-invokes the engine for each move, so it is best read as a practical search-quality/runtime probe rather than a pure in-engine throughput measure. Also, `MINICOBC_OPT=1` is currently not safe for chess: it miscompiles the engine and returns incorrect `perft` counts, so the reported chess numbers use plain `minicobc` plus `gcc -O2`.
 
 For a longer status snapshot with benchmark details, see `reports/current-status.md`.
 
@@ -242,6 +242,18 @@ That writes:
 - `build/perf/chess-perft-compare.json`
 - `build/perf/chess-perft-compare.md`
 
+The latest stricter default-profile run (`7` timed iterations, `2` warmups) came out at roughly:
+
+- aggregate perft runtime ratio: `0.03x`
+- `startpos/d4`: `35.25 ms` vs `1129.62 ms`
+- `kiwipete/d3`: `17.82 ms` vs `539.51 ms`
+
+The latest deeper `full`-profile run (`1` timed iteration, `0` warmups) also stayed near that factor:
+
+- aggregate perft runtime ratio: `0.03x`
+- `startpos/d5`: `902.40 ms` vs `27321.78 ms`
+- `kiwipete/d4`: `649.73 ms` vs `22625.12 ms`
+
 For an independent shallow move-count cross-check adapted from the Brainfuck chess-engine `test_perft.py` style, run:
 
 ```bash
@@ -252,6 +264,87 @@ That compares the `minicobc` and GnuCOBOL chess binaries against `python-chess` 
 
 - `build/perf/chess-depth1-suite.json`
 - `build/perf/chess-depth1-suite.md`
+
+The latest `7`-iteration depth-1 suite matched `python-chess`, `minicobc`, and GnuCOBOL on all `11/11` positions, with runtime ratios ranging from about `0.42x` to `0.48x`.
+
+For a fixed-depth search benchmark that compares normalized `info ...` and `bestmove` output against GnuCOBOL, run:
+
+```bash
+./scripts/compare-chess-search-suite.sh
+```
+
+That writes:
+
+- `build/perf/chess-search-suite.json`
+- `build/perf/chess-search-suite.md`
+
+The latest `5`-iteration run matched GnuCOBOL exactly on four cases and measured about:
+
+- aggregate search runtime ratio: `0.05x`
+- `Startpos depth 2`: `2.98 ms` vs `20.86 ms`
+- `Phase-3 debug FEN depth 2`: `4.85 ms` vs `194.03 ms`
+
+For a broader and slightly deeper search profile:
+
+```bash
+./scripts/compare-chess-search-suite.sh --profile extended --iterations 3
+```
+
+The latest extended run matched GnuCOBOL exactly on `7` cases and measured about:
+
+- aggregate search runtime ratio: `0.03x`
+- `Startpos depth 3`: `3.75 ms` vs `45.12 ms`
+- `Open game depth 3`: `4.41 ms` vs `109.78 ms`
+- `Phase-3 debug FEN depth 3`: `9.84 ms` vs `726.53 ms`
+
+For a paired-game tournament benchmark with fixed-depth search, diversified starts, and color swaps:
+
+```bash
+./scripts/compare-chess-tournament.sh --profile default --depth 2 --max-plies 12
+```
+
+That writes:
+
+- `build/perf/chess-tournament-default-d2-p12.json`
+- `build/perf/chess-tournament-default-d2-p12.md`
+- `build/perf/chess-tournament-default-d2-p12.pgn`
+
+The latest default depth-2 tournament run produced:
+
+- no illegal moves from either engine
+- equal score: `5.0` vs `5.0`
+- `minicobc` average wall time per move: `4.85 ms`
+- GnuCOBOL average wall time per move: `75.33 ms`
+
+For a slightly deeper tournament probe:
+
+```bash
+./scripts/compare-chess-tournament.sh --profile quick --depth 3 --max-plies 10
+```
+
+The latest quick depth-3 run also had no illegal moves and an equal `3.0`-`3.0` score, with average wall time per move `7.88 ms` for `minicobc` versus `182.11 ms` for GnuCOBOL.
+
+For a MiniCOBC-vs-Stockfish tournament across multiple Stockfish `Skill Level` settings:
+
+```bash
+./scripts/compare-chess-stockfish-tournament.sh --profile extended --search-mode movetime --movetime-ms 50 --max-plies 16 --skills 0,5,10,15,20
+```
+
+That writes:
+
+- `build/perf/chess-stockfish-tournament-extended-mt50-p16-s0-5-10-15-20.json`
+- `build/perf/chess-stockfish-tournament-extended-mt50-p16-s0-5-10-15-20.md`
+- `build/perf/chess-stockfish-tournament-extended-mt50-p16-s0-5-10-15-20.pgn`
+
+The latest full run on this machine used persistent Stockfish and the `minicobc`-built `COBOCHESS` binary with `50 ms` per move. It stayed legal throughout and produced a close gradient rather than a blowout:
+
+- skill `0`: MiniCOBC `7.5`, Stockfish `6.5`
+- skill `5`: `7.0` to `7.0`
+- skill `10`: MiniCOBC `7.5`, Stockfish `6.5`
+- skill `15`: `7.0` to `7.0`
+- skill `20`: MiniCOBC `6.5`, Stockfish `7.5`
+
+This should be read as a practical small-match probe, not an Elo claim. The position set is small, many games draw by the ply cap, and the benchmark mixes a stateless `minicobc` engine invocation with a persistent Stockfish session.
 
 `MiniCOBC` also has a targeted compatibility path for [`acherm/agentic-cobol-pygame`](https://github.com/acherm/agentic-cobol-pygame) at [commit `b2095a1`](https://github.com/acherm/agentic-cobol-pygame/commit/b2095a1ce046cb654bff9e072c96e1ce4d2b11d9).
 
