@@ -58,6 +58,16 @@ gcc -std=c99 -O2 build/generated/multiline_if.c -o build/bin/multiline_if
 ./build/bin/multiline_if > build/out/multiline_if.txt
 diff -u expected/generic/multiline_if.txt build/out/multiline_if.txt
 
+./build/bin/minicobc examples/generic/else_if_chain.cob build/generated/else_if_chain.c
+gcc -std=c99 -O2 build/generated/else_if_chain.c -o build/bin/else_if_chain
+./build/bin/else_if_chain > build/out/else_if_chain.txt
+diff -u expected/generic/else_if_chain.txt build/out/else_if_chain.txt
+
+./build/bin/minicobc examples/generic/else_if_repeated_end_if.cob build/generated/else_if_repeated_end_if.c
+gcc -std=c99 -O2 build/generated/else_if_repeated_end_if.c -o build/bin/else_if_repeated_end_if
+./build/bin/else_if_repeated_end_if > build/out/else_if_repeated_end_if.txt
+diff -u expected/generic/else_if_repeated_end_if.txt build/out/else_if_repeated_end_if.txt
+
 ./build/bin/minicobc examples/generic/evaluate_value.cob build/generated/evaluate_value.c
 gcc -std=c99 -O2 build/generated/evaluate_value.c -o build/bin/evaluate_value
 ./build/bin/evaluate_value > build/out/evaluate_value.txt
