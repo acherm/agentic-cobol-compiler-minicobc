@@ -1,0 +1,19 @@
+Started game 1 of 2 (MiniCOBC vs Stockfish-s0)
+Finished game 1 (MiniCOBC vs Stockfish-s0): 1-0 {White wins by adjudication}
+Score of MiniCOBC vs Stockfish-s0: 1 - 0 - 0  [1.000] 1
+Started game 2 of 2 (Stockfish-s0 vs MiniCOBC)
+Finished game 2 (Stockfish-s0 vs MiniCOBC): 0-1 {Black wins by adjudication}
+Score of MiniCOBC vs Stockfish-s0: 2 - 0 - 0  [1.000] 2
+...      MiniCOBC playing White: 1 - 0 - 0  [1.000] 1
+...      MiniCOBC playing Black: 1 - 0 - 0  [1.000] 1
+...      White vs Black: 1 - 1 - 0  [0.500] 2
+Elo difference: inf +/- nan, LOS: 92.1 %, DrawRatio: 0.0 %
+SPRT: llr 0 (0.0%), lbound -inf, ubound inf
+
+Player: MiniCOBC
+   "Win: Black wins by adjudication": 1
+   "Win: White wins by adjudication": 1
+Player: Stockfish-s0
+   "Loss: Black wins by adjudication": 1
+   "Loss: White wins by adjudication": 1
+Finished match

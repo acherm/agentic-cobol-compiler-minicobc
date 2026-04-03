@@ -1,0 +1,71 @@
+[Event "Italian Game"]
+[Site "MiniCOBC"]
+[Round "1"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 *
+
+[Event "Sicilian Najdorf Setup"]
+[Site "MiniCOBC"]
+[Round "2"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 *
+
+[Event "French Classical Setup"]
+[Site "MiniCOBC"]
+[Round "3"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. e4 e6 2. d4 d5 3. Nc3 Nf6 *
+
+[Event "Caro-Kann Classical Setup"]
+[Site "MiniCOBC"]
+[Round "4"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. e4 c6 2. d4 d5 3. Nc3 dxe4 *
+
+[Event "Queen's Gambit Declined"]
+[Site "MiniCOBC"]
+[Round "5"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. d4 d5 2. c4 e6 3. Nc3 Nf6 *
+
+[Event "King's Indian Defence"]
+[Site "MiniCOBC"]
+[Round "6"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 *
+
+[Event "English Opening"]
+[Site "MiniCOBC"]
+[Round "7"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. c4 e5 2. Nc3 Nf6 3. g3 d5 *
+
+[Event "Reti Setup"]
+[Site "MiniCOBC"]
+[Round "8"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+
+1. Nf3 d5 2. g3 Nf6 3. Bg2 e6 *

@@ -80,11 +80,21 @@ def detect_stockfish_banner(binary):
 
 
 class StatelessUciEngine:
-    def __init__(self, binary, label, variant, search_command, setup_lines=None, timeout_s=30.0):
+    def __init__(
+        self,
+        binary,
+        label,
+        variant,
+        search_mode,
+        search_value,
+        setup_lines=None,
+        timeout_s=30.0,
+    ):
         self.binary = Path(binary)
         self.label = label
         self.variant = variant
-        self.search_command = search_command
+        self.search_mode = search_mode
+        self.search_value = search_value
         self.setup_lines = list(setup_lines or [])
         self.timeout_s = timeout_s
 
@@ -97,14 +107,29 @@ class StatelessUciEngine:
     def new_game(self):
         return None
 
-    def search(self, case, played_moves):
+    def search(self, case, played_moves, clock_state=None):
+        if self.search_mode == "depth":
+            search_command = f"go depth {self.search_value}"
+        elif self.search_mode == "movetime":
+            search_command = f"go movetime {self.search_value}"
+        else:
+            if clock_state is None:
+                raise RuntimeError(f"{self.variant}: missing clock state for clock search mode")
+            search_command = (
+                f"go wtime {clock_state['white_ms']} "
+                f"btime {clock_state['black_ms']} "
+                f"winc {clock_state['white_inc_ms']} "
+                f"binc {clock_state['black_inc_ms']}"
+            )
+            if clock_state.get("side_moves_to_go") is not None:
+                search_command += f" movestogo {clock_state['side_moves_to_go']}"
         stdin_lines = ["uci"]
         stdin_lines.extend(self.setup_lines)
         stdin_lines.extend(
             [
                 "isready",
                 build_position_command(case, played_moves),
-                self.search_command,
+                search_command,
                 "quit",
             ]
         )
@@ -186,14 +211,24 @@ class PersistentStockfishEngine:
     def new_game(self):
         self.game_token = object()
 
-    def search(self, case, played_moves):
+    def search(self, case, played_moves, clock_state=None):
         board = make_board(case)
         for move in played_moves:
             board.push(chess.Move.from_uci(move))
         if self.search_mode == "depth":
             limit = chess.engine.Limit(depth=self.search_value)
-        else:
+        elif self.search_mode == "movetime":
             limit = chess.engine.Limit(time=self.search_value / 1000.0)
+        else:
+            if clock_state is None:
+                raise RuntimeError(f"{self.variant}: missing clock state for clock search mode")
+            limit = chess.engine.Limit(
+                white_clock=clock_state["white_ms"] / 1000.0,
+                black_clock=clock_state["black_ms"] / 1000.0,
+                white_inc=clock_state["white_inc_ms"] / 1000.0,
+                black_inc=clock_state["black_inc_ms"] / 1000.0,
+                remaining_moves=clock_state.get("side_moves_to_go"),
+            )
         started = time.perf_counter()
         result = self.engine.play(
             board,
@@ -229,6 +264,49 @@ def build_game_header(case, white_name, black_name, result, search_mode, search_
         headers["FEN"] = initial_fen
         headers["SetUp"] = "1"
     return headers
+
+
+def initial_clock_state(search_mode, search_value):
+    if search_mode != "clock":
+        return None
+    base_ms = search_value["base_ms"]
+    increment_ms = search_value["increment_ms"]
+    moves_to_go = search_value.get("moves_to_go")
+    return {
+        "white_ms": base_ms,
+        "black_ms": base_ms,
+        "white_inc_ms": increment_ms,
+        "black_inc_ms": increment_ms,
+        "white_moves_to_go": moves_to_go,
+        "black_moves_to_go": moves_to_go,
+    }
+
+
+def side_clock_view(clock_state, is_white_turn):
+    if clock_state is None:
+        return None
+    return {
+        "white_ms": int(max(0, round(clock_state["white_ms"]))),
+        "black_ms": int(max(0, round(clock_state["black_ms"]))),
+        "white_inc_ms": int(max(0, round(clock_state["white_inc_ms"]))),
+        "black_inc_ms": int(max(0, round(clock_state["black_inc_ms"]))),
+        "side_moves_to_go": clock_state["white_moves_to_go"] if is_white_turn else clock_state["black_moves_to_go"],
+    }
+
+
+def update_clock_state(clock_state, is_white_turn, elapsed_ms):
+    if clock_state is None:
+        return
+    if is_white_turn:
+        clock_state["white_ms"] = max(0.0, clock_state["white_ms"] - elapsed_ms)
+        clock_state["white_ms"] += clock_state["white_inc_ms"]
+        if clock_state["white_moves_to_go"] is not None and clock_state["white_moves_to_go"] > 0:
+            clock_state["white_moves_to_go"] -= 1
+    else:
+        clock_state["black_ms"] = max(0.0, clock_state["black_ms"] - elapsed_ms)
+        clock_state["black_ms"] += clock_state["black_inc_ms"]
+        if clock_state["black_moves_to_go"] is not None and clock_state["black_moves_to_go"] > 0:
+            clock_state["black_moves_to_go"] -= 1
 
 
 def numeric_score(outcome, white_variant, black_variant):
@@ -313,6 +391,7 @@ def illegal_result(side_engine_variant, white_variant, black_variant):
 def play_tournament_game(case, game_index, white_engine, black_engine, search_mode, search_value, max_plies, skill):
     board = make_board(case)
     played_moves = []
+    clock_state = initial_clock_state(search_mode, search_value)
     game = chess.pgn.Game()
     game.headers.update(
         build_game_header(
@@ -340,8 +419,9 @@ def play_tournament_game(case, game_index, white_engine, black_engine, search_mo
             outcome = board.outcome(claim_draw=True)
             termination = outcome.termination.name
             break
-        side_engine = white_engine if board.turn == chess.WHITE else black_engine
-        result = side_engine.search(case, played_moves)
+        is_white_turn = board.turn == chess.WHITE
+        side_engine = white_engine if is_white_turn else black_engine
+        result = side_engine.search(case, played_moves, side_clock_view(clock_state, is_white_turn))
         move_text = result["bestmove"]
         if move_text in {"0000", "(none)"}:
             outcome = board.outcome(claim_draw=True)
@@ -412,6 +492,7 @@ def play_tournament_game(case, game_index, white_engine, black_engine, search_mo
         node = node.add_variation(move)
         board.push(move)
         played_moves.append(move.uci())
+        update_clock_state(clock_state, is_white_turn, result["wall_ms"])
 
     if outcome is None:
         outcome = board.outcome(claim_draw=True)
@@ -452,7 +533,10 @@ def render_markdown(repo, commit, stockfish_binary, stockfish_banner, profile, s
     if search_mode == "depth":
         lines.append("- Search mode: fixed depth per move for both engines")
     else:
-        lines.append("- Search mode: fixed movetime per move for both engines")
+        if search_mode == "movetime":
+            lines.append("- Search mode: fixed movetime per move for both engines")
+        else:
+            lines.append("- Search mode: clocked game with increment/moves-to-go")
     lines.append(f"- Repo: `{repo}`")
     lines.append(f"- Commit: `{commit}`")
     lines.append(f"- Stockfish: `{stockfish_banner}`")
@@ -460,8 +544,13 @@ def render_markdown(repo, commit, stockfish_binary, stockfish_banner, profile, s
     lines.append(f"- Profile: `{profile}`")
     if search_mode == "depth":
         lines.append(f"- Fixed depth per move: `{search_value}`")
-    else:
+    elif search_mode == "movetime":
         lines.append(f"- Fixed movetime per move: `{search_value} ms`")
+    else:
+        lines.append(f"- Base time per side: `{search_value['base_ms']} ms`")
+        lines.append(f"- Increment per move: `{search_value['increment_ms']} ms`")
+        if search_value.get("moves_to_go") is not None:
+            lines.append(f"- Moves to go hint: `{search_value['moves_to_go']}`")
     lines.append(f"- Max plies per game: `{max_plies}`")
     lines.append(f"- `minicobc` build pipeline time: `{mini_build_ms:.2f} ms`")
     lines.append("")
@@ -522,9 +611,12 @@ def main():
         choices=tuple(TOURNAMENT_PROFILES.keys()),
         default="default",
     )
-    parser.add_argument("--search-mode", choices=("depth", "movetime"), default="depth")
+    parser.add_argument("--search-mode", choices=("depth", "movetime", "clock"), default="depth")
     parser.add_argument("--depth", type=int, default=3)
     parser.add_argument("--movetime-ms", type=int, default=50)
+    parser.add_argument("--base-ms", type=int, default=120000)
+    parser.add_argument("--increment-ms", type=int, default=1000)
+    parser.add_argument("--moves-to-go", type=int)
     parser.add_argument("--max-plies", type=int, default=12)
     parser.add_argument("--skills", default="0,5,10,15,20")
     args = parser.parse_args()
@@ -535,11 +627,15 @@ def main():
         return 2
 
     if args.search_mode == "depth":
-        search_command = f"go depth {args.depth}"
         search_value = args.depth
-    else:
-        search_command = f"go movetime {args.movetime_ms}"
+    elif args.search_mode == "movetime":
         search_value = args.movetime_ms
+    else:
+        search_value = {
+            "base_ms": args.base_ms,
+            "increment_ms": args.increment_ms,
+            "moves_to_go": args.moves_to_go,
+        }
 
     try:
         skill_levels = parse_skill_levels(args.skills)
@@ -567,7 +663,8 @@ def main():
                 mini_binary,
                 "MiniCOBC",
                 "minicobc",
-                search_command,
+                args.search_mode,
+                search_value,
             ) as mini_engine, PersistentStockfishEngine(
                 stockfish_binary,
                 f"Stockfish skill {skill}",
@@ -633,8 +730,12 @@ def main():
     skills_slug = "-".join(str(skill) for skill in skill_levels)
     if args.search_mode == "depth":
         mode_slug = f"d{args.depth}"
-    else:
+    elif args.search_mode == "movetime":
         mode_slug = f"mt{args.movetime_ms}"
+    else:
+        mode_slug = f"tc{args.base_ms}+{args.increment_ms}"
+        if args.moves_to_go is not None:
+            mode_slug += f"-m{args.moves_to_go}"
     run_id = f"{args.profile}-{mode_slug}-p{args.max_plies}-s{skills_slug}"
     json_path = out_dir / f"chess-stockfish-tournament-{run_id}.json"
     md_path = out_dir / f"chess-stockfish-tournament-{run_id}.md"
